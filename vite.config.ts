@@ -5,7 +5,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    base: '/Smart-Packing-PRO/', // <-- เพิ่มบรรทัดนี้ให้ตรงกับชื่อ Repo บน GitHub
+    base: './', // Universal relative base for GitHub Pages, Vercel, and root hosting
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
