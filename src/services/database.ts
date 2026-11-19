@@ -6,7 +6,7 @@ import { InspectionRecord } from '../types';
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxhbORz5XB6pjqDaQWLt0cV7kuxC_YArKfh5a5veeRdXWSCvBRbhknlJkuY6LNiqUcO-w/exec";
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbz0KDvCH2vcCtxvETw9XntJ4uFi1PyWOiaQAsSqA1iL3cpfuEuhgW8NyMO2Nbfbtsebog/exec";
 const SHEET_ID = "1iSGxeBQx-LB0tNycfWo_xBQ6JLk_Dp8AGif0HkiPXBI";
 const SHEET_NAME = "OEE_logs";
 const CACHE_KEY = "am_records";
