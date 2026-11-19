@@ -225,19 +225,19 @@ export const DatabaseService = {
       console.warn("Failed to save OEE record to Firestore:", fsErr);
     }
 
-    // Sync to Google Sheet as well
+    // Sync to Google Sheet as well (POST request with JSON payload for doPost handler)
     const planTimeVal = record.shiftType === '12h' ? 720 : 480;
     const bdVal = record.breakdownMin || 0;
     const runTimeVal = Math.max(0, planTimeVal - bdVal);
-    const speedStdVal = record.speedStd !== undefined && record.speedStd !== null ? Number(record.speedStd) : 0;
-    const speedSetVal = record.speedSet !== undefined && record.speedSet !== null ? Number(record.speedSet) : 0;
+    const speedStdVal = record.speedStd !== undefined && record.speedStd !== null ? Number(record.speedStd) : 34.67;
+    const speedSetVal = record.speedSet !== undefined && record.speedSet !== null ? Number(record.speedSet) : 45.00;
     const speedActVal = record.speed || 38.5;
     const targetVal = record.targetKg || (speedStdVal * runTimeVal);
     const goodVal = record.goodKg || 12500;
     const rejectVal = record.rejectKg || 0;
     const actualVal = record.actualKg || (goodVal + rejectVal);
 
-    const params = new URLSearchParams({
+    const payload = {
       action: "saveRecord",
       sheetId: SHEET_ID,
       sheetName: sheetName,
@@ -247,21 +247,25 @@ export const DatabaseService = {
       shift: record.shift || "A",
       shiftType: record.shiftType || "8h",
       operator: record.operator || "",
-      planTime: String(planTimeVal),
-      runTime: String(runTimeVal),
-      bd: String(bdVal),
-      speedStd: String(speedStdVal),
-      speedSet: String(speedSetVal),
-      speedActual: String(speedActVal),
-      target: String(targetVal),
-      actual: String(actualVal),
-      good: String(goodVal),
-      reject: String(rejectVal)
-    });
+      planTime: planTimeVal,
+      runTime: runTimeVal,
+      bd: bdVal,
+      speedStd: speedStdVal,
+      speedSet: speedSetVal,
+      speedActual: speedActVal,
+      target: targetVal,
+      actual: actualVal,
+      good: goodVal,
+      reject: rejectVal
+    };
 
-    const targetUrl = `${GAS_API_URL}?${params.toString()}`;
     try {
-      await fetch(targetUrl, { method: "GET", mode: "no-cors" });
+      await fetch(GAS_API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
     } catch (err) {
       console.warn("Google Sheet sync warning:", err);
     }
@@ -427,7 +431,7 @@ export const DatabaseService = {
     const sealSheetName = "TPM_Logs";
     const sealGasUrl = "https://script.google.com/macros/s/AKfycby0tMGCk5-0gXw1hwmnAwYN_FDLjSDsU5bd3s2kXtboL7jIak0HGgTPF6uZOg6yC5D2wA/exec";
 
-    const params = new URLSearchParams({
+    const payload = {
       action: "saveRecord",
       sheetId: sealSheetId,
       sheetName: sealSheetName,
@@ -437,9 +441,9 @@ export const DatabaseService = {
       shift: record.shift || "A",
       shiftType: record.shiftType || "8h",
       operator: record.operator || "",
-      tempFront: String(record.tempFront ?? ''),
-      tempBack: String(record.tempBack ?? ''),
-      tempMid: String(record.tempMid ?? ''),
+      tempFront: record.tempFront ?? '',
+      tempBack: record.tempBack ?? '',
+      tempMid: record.tempMid ?? '',
       lot: record.lot || 'pass',
       teflon: record.teflon || 'pass',
       packSealTop: record.packSealTop || 'pass',
@@ -447,11 +451,15 @@ export const DatabaseService = {
       packSealBot: record.packSealBot || 'pass',
       hole: record.hole || 'pass',
       notes: record.notes || ''
-    });
+    };
 
-    const targetUrl = `${sealGasUrl}?${params.toString()}`;
     try {
-      await fetch(targetUrl, { method: "GET", mode: "no-cors" });
+      await fetch(sealGasUrl, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
     } catch (err) {
       console.warn("Seal Temp Sheet sync warning:", err);
     }

@@ -44,13 +44,13 @@ const MACHINE_DEFAULTS: Record<number, any> = {
 };
 
 const MACHINE_SPEED_SPECS: Record<number, { std: number; set: number }> = {
-  1: { std: 34.67, set: 45.00 },
-  2: { std: 34.67, set: 45.00 },
-  3: { std: 32.00, set: 40.00 },
-  4: { std: 24.00, set: 35.00 },
-  5: { std: 24.00, set: 35.00 },
-  6: { std: 17.00, set: 22.00 },
-  7: { std: 23.50, set: 25.00 }
+  1: { std: 50.00, set: 50.00 },
+  2: { std: 50.00, set: 50.00 },
+  3: { std: 30.00, set: 25.00 },
+  4: { std: 30.00, set: 25.00 },
+  5: { std: 30.00, set: 25.00 },
+  6: { std: 30.00, set: 25.00 },
+  7: { std: 30.00, set: 25.00 }
 };
 
 const INSPECTORS = [
