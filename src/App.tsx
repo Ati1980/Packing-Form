@@ -349,6 +349,25 @@ const getMachineOnlyList = (records: InspectionRecord[], dashFilterDate: string,
   }).filter(m => dashFilterMachine !== 'all' || m.hasRecords || m.planTime > 0);
 };
 
+const renderPctBadge = (pct: number) => {
+  let badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  let barColor = 'bg-emerald-500/25';
+  if (pct < 60) {
+    badgeStyle = 'bg-rose-50 text-rose-700 border-rose-200';
+    barColor = 'bg-rose-500/25';
+  } else if (pct < 85) {
+    badgeStyle = 'bg-amber-50 text-amber-700 border-amber-200';
+    barColor = 'bg-amber-500/25';
+  }
+  const clamped = Math.min(100, Math.max(0, pct));
+  return (
+    <div className={`relative overflow-hidden inline-flex items-center justify-center px-2.5 py-0.5 rounded-lg border font-mono font-black text-xs shadow-2xs ${badgeStyle}`}>
+      <div className={`absolute left-0 top-0 bottom-0 ${barColor} transition-all duration-500`} style={{ width: `${clamped}%`, zIndex: 0 }}></div>
+      <span className="relative z-10">{pct.toFixed(2)}%</span>
+    </div>
+  );
+};
+
 export default function App() {
   const [currentView, setCurrentView] = useState<'form' | 'oee' | 'film' | 'historyHub' | 'historySeal' | 'historyOee' | 'historyFilm' | 'dashboard'>('form');
   const [selectedMachine, setSelectedMachine] = useState<number>(1);
@@ -3282,8 +3301,8 @@ export default function App() {
                                 <td className="p-2.5 border-r border-slate-200 font-semibold flex items-center gap-1.5 font-display">
                                   <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> ⚙️ {mRow.name}
                                 </td>
-                                <td className="p-2.5 text-right font-mono border-r border-slate-200 text-blue-700 font-black">{mRow.oee.toFixed(2)}%</td>
-                                <td className="p-2.5 text-right font-mono border-r border-slate-200 text-blue-700 font-black">{mRow.perf.toFixed(2)}%</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{renderPctBadge(mRow.oee)}</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{renderPctBadge(mRow.perf)}</td>
                                 <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.speedStd.toFixed(2)}</td>
                                 <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.speedSet.toFixed(2)}</td>
                                 <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.speedAct.toFixed(2)}</td>
@@ -3291,8 +3310,8 @@ export default function App() {
                                 <td className="p-2.5 text-right font-mono border-r border-slate-200">{Math.round(mRow.actual).toLocaleString()}</td>
                                 <td className="p-2.5 text-right font-mono border-r border-slate-200">{Math.round(mRow.good).toLocaleString()}</td>
                                 <td className="p-2.5 text-right font-mono border-r border-slate-200">{Math.round(mRow.reject).toLocaleString()}</td>
-                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.me.toFixed(2)}%</td>
-                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.quality.toFixed(2)}%</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{renderPctBadge(mRow.me)}</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{renderPctBadge(mRow.quality)}</td>
                                 <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.planTime.toLocaleString()}</td>
                                 <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.runTime.toLocaleString()}</td>
                                 <td className="p-2.5 text-right font-mono">{mRow.bd.toLocaleString()}</td>
@@ -3322,8 +3341,8 @@ export default function App() {
                                   <td className="p-2.5 flex items-center gap-1.5 font-display">
                                     <span className="text-sm">{insObj.emoji}</span> {opData.operatorName}
                                   </td>
-                                  <td className="p-2.5 text-right font-mono font-black text-blue-700">{opData.oee.toFixed(2)}%</td>
-                                  <td className="p-2.5 text-right font-mono font-black text-blue-700">{opData.perf.toFixed(2)}%</td>
+                                  <td className="p-2.5 text-right font-mono font-black">{renderPctBadge(opData.oee)}</td>
+                                  <td className="p-2.5 text-right font-mono font-black">{renderPctBadge(opData.perf)}</td>
                                   <td className="p-2.5 text-right font-mono">{opData.speedStd.toFixed(2)}</td>
                                   <td className="p-2.5 text-right font-mono">{opData.speedSet.toFixed(2)}</td>
                                   <td className="p-2.5 text-right font-mono">{opData.speedAct.toFixed(2)}</td>
@@ -3331,8 +3350,8 @@ export default function App() {
                                   <td className="p-2.5 text-right font-mono">{Math.round(opData.actual).toLocaleString()}</td>
                                   <td className="p-2.5 text-right font-mono">{Math.round(opData.good).toLocaleString()}</td>
                                   <td className="p-2.5 text-right font-mono">{Math.round(opData.reject).toLocaleString()}</td>
-                                  <td className="p-2.5 text-right font-mono">{opData.me.toFixed(2)}%</td>
-                                  <td className="p-2.5 text-right font-mono">{opData.quality.toFixed(2)}%</td>
+                                  <td className="p-2.5 text-right font-mono">{renderPctBadge(opData.me)}</td>
+                                  <td className="p-2.5 text-right font-mono">{renderPctBadge(opData.quality)}</td>
                                   <td className="p-2.5 text-right font-mono">{opData.planTime.toLocaleString()}</td>
                                   <td className="p-2.5 text-right font-mono">{opData.runTime.toLocaleString()}</td>
                                   <td className="p-2.5 text-right font-mono">{opData.bd.toLocaleString()}</td>
@@ -3343,8 +3362,8 @@ export default function App() {
                                     <td className="p-2.5 pl-8 border-r border-slate-200 font-semibold flex items-center gap-1.5">
                                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> {mRow.name}
                                     </td>
-                                    <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.oee.toFixed(2)}%</td>
-                                    <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.perf.toFixed(2)}%</td>
+                                    <td className="p-2.5 text-right font-mono border-r border-slate-200">{renderPctBadge(mRow.oee)}</td>
+                                    <td className="p-2.5 text-right font-mono border-r border-slate-200">{renderPctBadge(mRow.perf)}</td>
                                     <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.speedStd.toFixed(2)}</td>
                                     <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.speedSet.toFixed(2)}</td>
                                     <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.speedAct.toFixed(2)}</td>
@@ -3352,8 +3371,8 @@ export default function App() {
                                     <td className="p-2.5 text-right font-mono border-r border-slate-200">{Math.round(mRow.actual).toLocaleString()}</td>
                                     <td className="p-2.5 text-right font-mono border-r border-slate-200">{Math.round(mRow.good).toLocaleString()}</td>
                                     <td className="p-2.5 text-right font-mono border-r border-slate-200">{Math.round(mRow.reject).toLocaleString()}</td>
-                                    <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.me.toFixed(2)}%</td>
-                                    <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.quality.toFixed(2)}%</td>
+                                    <td className="p-2.5 text-right font-mono border-r border-slate-200">{renderPctBadge(mRow.me)}</td>
+                                    <td className="p-2.5 text-right font-mono border-r border-slate-200">{renderPctBadge(mRow.quality)}</td>
                                     <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.planTime.toLocaleString()}</td>
                                     <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.runTime.toLocaleString()}</td>
                                     <td className="p-2.5 text-right font-mono">{mRow.bd.toLocaleString()}</td>
@@ -3391,8 +3410,8 @@ export default function App() {
                           return (
                             <tr className="bg-blue-700 text-white font-black sticky bottom-0 z-10 shadow">
                               <td className="p-3 border-r border-blue-600 font-display">📊 Total / Average</td>
-                              <td className="p-3 text-right font-mono">{avgOee.toFixed(2)}%</td>
-                              <td className="p-3 text-right font-mono">{avgPerf.toFixed(2)}%</td>
+                              <td className="p-3 text-right font-mono">{renderPctBadge(avgOee)}</td>
+                              <td className="p-3 text-right font-mono">{renderPctBadge(avgPerf)}</td>
                               <td className="p-3 text-right font-mono">{avgStd.toFixed(2)}</td>
                               <td className="p-3 text-right font-mono">{avgSet.toFixed(2)}</td>
                               <td className="p-3 text-right font-mono">{avgAct.toFixed(2)}</td>
@@ -3400,8 +3419,8 @@ export default function App() {
                               <td className="p-3 text-right font-mono">{Math.round(totAction).toLocaleString()}</td>
                               <td className="p-3 text-right font-mono">{Math.round(totGood).toLocaleString()}</td>
                               <td className="p-3 text-right font-mono">{Math.round(totReject).toLocaleString()}</td>
-                              <td className="p-3 text-right font-mono">{avgMe.toFixed(2)}%</td>
-                              <td className="p-3 text-right font-mono">{avgQual.toFixed(2)}%</td>
+                              <td className="p-3 text-right font-mono">{renderPctBadge(avgMe)}</td>
+                              <td className="p-3 text-right font-mono">{renderPctBadge(avgQual)}</td>
                               <td className="p-3 text-right font-mono">{totPlan.toLocaleString()}</td>
                               <td className="p-3 text-right font-mono">{totRun.toLocaleString()}</td>
                               <td className="p-3 text-right font-mono">{totBd.toLocaleString()}</td>
