@@ -8,7 +8,7 @@ service cloud.firestore {
 
     function isValidOeeRecord(data) {
       return data.keys().hasAll(['id', 'machine', 'datetime', 'operator']) &&
-             data.keys().hasOnly(['id', 'machine', 'datetime', 'reportDate', 'shift', 'shiftType', 'operator', 'speed', 'targetKg', 'actualKg', 'goodKg', 'rejectKg', 'breakdownMin', 'notes', 'createdAt']) &&
+             data.keys().hasOnly(['id', 'machine', 'datetime', 'reportDate', 'shift', 'shiftType', 'operator', 'speed', 'speedStd', 'speedSet', 'targetKg', 'actualKg', 'goodKg', 'rejectKg', 'breakdownMin', 'notes', 'createdAt']) &&
              data.id is string && data.id.size() <= 64 &&
              data.machine is string && data.machine.size() <= 100 &&
              data.datetime is string && data.datetime.size() <= 64 &&

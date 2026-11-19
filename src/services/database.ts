@@ -35,13 +35,14 @@ export const DatabaseService = {
 
   async fetchRecords(forceRefresh = false): Promise<{ data: InspectionRecord[]; synced: boolean }> {
     const localData = this.getLocalRecords();
+    let firestoreRecords: InspectionRecord[] = [];
+    let sheetRecords: InspectionRecord[] = [];
 
     try {
-      // Try fetching from Firestore first (Primary Cloud Database)
       const q = query(collection(db, "oee_records"));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
-        const firestoreRecords: InspectionRecord[] = snapshot.docs.map(doc => {
+        firestoreRecords = snapshot.docs.map(doc => {
           const d = doc.data() as any;
           return {
             id: d.id || doc.id,
@@ -88,16 +89,12 @@ export const DatabaseService = {
             breakdownMin: Number(d.breakdownMin || 0),
             notes: d.notes || ''
           };
-        }).sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
-
-        this.setLocalRecords(firestoreRecords);
-        return { data: firestoreRecords, synced: true };
+        });
       }
     } catch (fsErr) {
-      console.warn("Firestore fetch error, falling back to Google Sheets / Local:", fsErr);
+      console.warn("Firestore fetch error:", fsErr);
     }
 
-    // Fallback to Google Sheet fetch
     try {
       const requestUrl = `${GAS_API_URL}?action=getAllRecords&sheetId=${encodeURIComponent(SHEET_ID)}&sheetName=${encodeURIComponent(SHEET_NAME)}&_t=${Date.now()}`;
       const res = await fetch(requestUrl, {
@@ -107,65 +104,77 @@ export const DatabaseService = {
         headers: { "Accept": "application/json" }
       });
 
-      if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-      const parsed = await res.json();
-
-      if (Array.isArray(parsed)) {
-        const cleaned: InspectionRecord[] = parsed
-          .filter((r: any) => r && (r.datetime || r['ข้อมูลวันที่']))
-          .map((r: any) => ({
-            id: r.id || (Math.random().toString(36).slice(2, 9)),
-            recordType: 'oee' as const,
-            machine: r.machine ?? r['เครื่องจักร'] ?? 'เครื่องบรรจุ 1Kg No.1',
-            datetime: r.datetime ?? r['ข้อมูลวันที่'] ?? new Date().toISOString(),
-            reportDate: r.reportDate ?? r['ข้อมูลวันที่'] ?? new Date().toISOString().slice(0, 10),
-            shift: r.shift ?? r['shift'] ?? 'A',
-            shiftType: r.shiftType ?? r['shift duration type'] ?? '8h',
-            operator: r.operator ?? r['ชื่อผู้บันทึก'] ?? '-',
-            speed: Number(r.speed ?? r['Speed Actual'] ?? 0),
-            tempFront: null,
-            tempFrontMin: null,
-            tempFrontMax: null,
-            tfStatus: 'pass',
-            tempBack: null,
-            tempBackMin: null,
-            tempBackMax: null,
-            tbStatus: 'pass',
-            tempMid: null,
-            tempMidMin: null,
-            tempMidMax: null,
-            tmStatus: 'pass',
-            timeFrontBack: null,
-            timeFrontBackMin: null,
-            timeFrontBackMax: null,
-            timeFbStatus: 'pass',
-            timeMid: null,
-            timeMidMin: null,
-            timeMidMax: null,
-            timeMStatus: 'pass',
-            lot: 'pass',
-            teflon: 'pass',
-            packSealTop: 'pass',
-            packSealMid: 'pass',
-            packSealBot: 'pass',
-            hole: 'pass',
-            targetKg: Number(r.targetKg ?? r['Target'] ?? 15000),
-            actualKg: Number(r.actualKg ?? r['Actual'] ?? 12500),
-            goodKg: Number(r.goodKg ?? r['Good'] ?? 12500),
-            rejectKg: Number(r.rejectKg ?? r['Reject'] ?? 0),
-            breakdownMin: Number(r.breakdownMin ?? r['BD'] ?? 0),
-            notes: r.notes ?? ''
-          }))
-          .sort((a: any, b: any) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
-
-        this.setLocalRecords(cleaned);
-        return { data: cleaned, synced: true };
+      if (res.ok) {
+        const parsed = await res.json();
+        if (Array.isArray(parsed)) {
+          sheetRecords = parsed
+            .filter((r: any) => r && (r.datetime || r['ข้อมูลวันที่']))
+            .map((r: any) => ({
+              id: r.id || (Math.random().toString(36).slice(2, 9)),
+              recordType: 'oee' as const,
+              machine: r.machine ?? r['เครื่องจักร'] ?? 'เครื่องบรรจุ 1Kg No.1',
+              datetime: r.datetime ?? r['ข้อมูลวันที่'] ?? new Date().toISOString(),
+              reportDate: r.reportDate ?? r['ข้อมูลวันที่'] ?? new Date().toISOString().slice(0, 10),
+              shift: r.shift ?? r['shift'] ?? 'A',
+              shiftType: r.shiftType ?? r['shift duration type'] ?? '8h',
+              operator: r.operator ?? r['ชื่อผู้บันทึก'] ?? '-',
+              speed: Number(r.speed ?? r['Speed Actual'] ?? 0),
+              speedStd: Number(r.speedStd ?? 34.67),
+              speedSet: Number(r.speedSet ?? 45.00),
+              tempFront: null,
+              tempFrontMin: null,
+              tempFrontMax: null,
+              tfStatus: 'pass',
+              tempBack: null,
+              tempBackMin: null,
+              tempBackMax: null,
+              tbStatus: 'pass',
+              tempMid: null,
+              tempMidMin: null,
+              tempMidMax: null,
+              tmStatus: 'pass',
+              timeFrontBack: null,
+              timeFrontBackMin: null,
+              timeFrontBackMax: null,
+              timeFbStatus: 'pass',
+              timeMid: null,
+              timeMidMin: null,
+              timeMidMax: null,
+              timeMStatus: 'pass',
+              lot: 'pass',
+              teflon: 'pass',
+              packSealTop: 'pass',
+              packSealMid: 'pass',
+              packSealBot: 'pass',
+              hole: 'pass',
+              targetKg: Number(r.targetKg ?? r['Target'] ?? 15000),
+              actualKg: Number(r.actualKg ?? r['Actual'] ?? 12500),
+              goodKg: Number(r.goodKg ?? r['Good'] ?? 12500),
+              rejectKg: Number(r.rejectKg ?? r['Reject'] ?? 0),
+              breakdownMin: Number(r.breakdownMin ?? r['BD'] ?? 0),
+              notes: r.notes ?? ''
+            }));
+        }
       }
-      return { data: localData, synced: false };
     } catch (err) {
-      console.warn("Network fetch failed, fallback to local storage:", err);
-      return { data: localData, synced: false };
+      console.warn("Google Sheet fetch warning:", err);
     }
+
+    const map = new Map<string, InspectionRecord>();
+    [...localData, ...sheetRecords, ...firestoreRecords].forEach(r => {
+      if (r && r.id) {
+        map.set(r.id, r);
+      }
+    });
+
+    const combined = Array.from(map.values()).sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
+
+    if (combined.length > 0) {
+      this.setLocalRecords(combined);
+      return { data: combined, synced: true };
+    }
+
+    return { data: localData, synced: false };
   },
 
   async submitRecord(record: InspectionRecord, sheetName: string = "OEE_logs"): Promise<any> {
