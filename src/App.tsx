@@ -3399,13 +3399,13 @@ export default function App() {
                           const totGood = listForFooter.reduce((acc, d) => acc + d.good, 0);
                           const totReject = listForFooter.reduce((acc, d) => acc + d.reject, 0);
 
-                          const avgOee = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.oee, 0) / listForFooter.length : 0;
-                          const avgPerf = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.perf, 0) / listForFooter.length : 0;
                           const avgStd = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.speedStd, 0) / listForFooter.length : 34.67;
                           const avgSet = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.speedSet, 0) / listForFooter.length : 45.00;
                           const avgAct = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.speedAct, 0) / listForFooter.length : 39.40;
-                          const avgMe = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.me, 0) / listForFooter.length : 100;
-                          const avgQual = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.quality, 0) / listForFooter.length : 100;
+                          const avgMe = totPlan > 0 ? (totRun / totPlan) * 100 : 100;
+                          const avgPerf = avgSet > 0 ? (avgAct / avgSet) * 100 : 100;
+                          const avgQual = totAction > 0 ? (totGood / totAction) * 100 : 100;
+                          const avgOee = (avgMe * avgPerf * avgQual) / 10000;
 
                           return (
                             <tr className="bg-blue-700 text-white font-black sticky bottom-0 z-10 shadow">
