@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidOeeRecord(data) {
+      return data.keys().hasAll(['id', 'machine', 'datetime', 'operator']) &&
+             data.keys().hasOnly(['id', 'machine', 'datetime', 'reportDate', 'shift', 'shiftType', 'operator', 'speed', 'targetKg', 'actualKg', 'goodKg', 'rejectKg', 'breakdownMin', 'notes']) &&
+             data.id is string && data.id.size() <= 64 &&
+             data.machine is string && data.machine.size() <= 100 &&
+             data.datetime is string && data.datetime.size() <= 64 &&
+             data.operator is string && data.operator.size() <= 100;
+    }
+
+    function isValidSealTempRecord(data) {
+      return data.keys().hasAll(['id', 'machine', 'datetime', 'operator']) &&
+             data.keys().hasOnly(['id', 'machine', 'datetime', 'reportDate', 'shift', 'shiftType', 'operator', 'tempFront', 'tempBack', 'tempMid', 'lot', 'teflon', 'packSealTop', 'packSealMid', 'packSealBot', 'hole', 'notes']) &&
+             data.id is string && data.id.size() <= 64 &&
+             data.machine is string && data.machine.size() <= 100 &&
+             data.datetime is string && data.datetime.size() <= 64 &&
+             data.operator is string && data.operator.size() <= 100;
+    }
+
+    function isValidFilmRollRecord(data) {
+      return data.keys().hasAll(['id', 'machine', 'datetime', 'operator', 'supplier']) &&
+             data.keys().hasOnly(['id', 'machine', 'datetime', 'filmDate', 'shift', 'shiftType', 'operator', 'supplier', 'changeTime', 'tagPhoto']) &&
+             data.id is string && data.id.size() <= 64 &&
+             data.machine is string && data.machine.size() <= 100 &&
+             data.datetime is string && data.datetime.size() <= 64 &&
+             data.operator is string && data.operator.size() <= 100 &&
+             data.supplier is string && data.supplier.size() <= 50;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /oee_records/{recordId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(recordId) && isValidOeeRecord(request.resource.data);
+      allow update: if isSignedIn() && isValidId(recordId) && isValidOeeRecord(request.resource.data) && request.resource.data.id == resource.data.id;
+      allow delete: if isSignedIn() && isValidId(recordId);
+    }
+
+    match /seal_temp_records/{recordId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(recordId) && isValidSealTempRecord(request.resource.data);
+      allow update: if isSignedIn() && isValidId(recordId) && isValidSealTempRecord(request.resource.data) && request.resource.data.id == resource.data.id;
+      allow delete: if isSignedIn() && isValidId(recordId);
+    }
+
+    match /film_roll_records/{recordId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(recordId) && isValidFilmRollRecord(request.resource.data);
+      allow update: if isSignedIn() && isValidId(recordId) && isValidFilmRollRecord(request.resource.data) && request.resource.data.id == resource.data.id;
+      allow delete: if isSignedIn() && isValidId(recordId);
+    }
+  }
+}

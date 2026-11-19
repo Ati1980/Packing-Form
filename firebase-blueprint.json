@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "OeeRecord": {
+      "title": "OEE Record",
+      "description": "OEE performance and production inspection record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "machine": { "type": "string", "maxLength": 100 },
+        "datetime": { "type": "string", "maxLength": 64 },
+        "reportDate": { "type": "string", "maxLength": 32 },
+        "shift": { "type": "string", "maxLength": 10 },
+        "shiftType": { "type": "string", "maxLength": 10 },
+        "operator": { "type": "string", "maxLength": 100 },
+        "speed": { "type": "number" },
+        "targetKg": { "type": "number" },
+        "actualKg": { "type": "number" },
+        "goodKg": { "type": "number" },
+        "rejectKg": { "type": "number" },
+        "breakdownMin": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "machine", "datetime", "operator"]
+    },
+    "SealTempRecord": {
+      "title": "Seal Temp Record",
+      "description": "Seal temperature and TPM quality check record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "machine": { "type": "string", "maxLength": 100 },
+        "datetime": { "type": "string", "maxLength": 64 },
+        "reportDate": { "type": "string", "maxLength": 32 },
+        "shift": { "type": "string", "maxLength": 10 },
+        "shiftType": { "type": "string", "maxLength": 10 },
+        "operator": { "type": "string", "maxLength": 100 },
+        "tempFront": { "type": "number" },
+        "tempBack": { "type": "number" },
+        "tempMid": { "type": "number" },
+        "lot": { "type": "string", "maxLength": 50 },
+        "teflon": { "type": "string", "maxLength": 50 },
+        "packSealTop": { "type": "string", "maxLength": 50 },
+        "packSealMid": { "type": "string", "maxLength": 50 },
+        "packSealBot": { "type": "string", "maxLength": 50 },
+        "hole": { "type": "string", "maxLength": 50 },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "machine", "datetime", "operator"]
+    },
+    "FilmRollRecord": {
+      "title": "Film Roll Record",
+      "description": "Film roll inspection record with tag photo",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "machine": { "type": "string", "maxLength": 100 },
+        "datetime": { "type": "string", "maxLength": 64 },
+        "filmDate": { "type": "string", "maxLength": 32 },
+        "shift": { "type": "string", "maxLength": 10 },
+        "shiftType": { "type": "string", "maxLength": 10 },
+        "operator": { "type": "string", "maxLength": 100 },
+        "supplier": { "type": "string", "maxLength": 50 },
+        "changeTime": { "type": "string", "maxLength": 32 },
+        "tagPhoto": { "type": "string" }
+      },
+      "required": ["id", "machine", "datetime", "operator", "supplier"]
+    }
+  },
+  "firestore": {
+    "/oee_records/{recordId}": {
+      "schema": "OeeRecord",
+      "description": "Collection of OEE performance records"
+    },
+    "/seal_temp_records/{recordId}": {
+      "schema": "SealTempRecord",
+      "description": "Collection of Seal Temp / TPM inspection records"
+    },
+    "/film_roll_records/{recordId}": {
+      "schema": "FilmRollRecord",
+      "description": "Collection of Film Roll inspection records"
+    }
+  }
+}
