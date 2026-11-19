@@ -223,8 +223,8 @@ const computeOperatorData = (opName: string, records: InspectionRecord[], dashFi
     const subBd = subRecs.reduce((acc, r) => acc + (r.breakdownMin ?? 0), 0);
     const subRun = Math.max(0, subPlan - subBd);
     const spec = getMachineSpec(mName);
-    const subSpeedStd = spec.std;
-    const subSpeedSet = spec.set;
+    const subSpeedStd = subRecs.length > 0 ? subRecs.reduce((acc, r) => acc + (Number(r.speedStd) || spec.std), 0) / subRecs.length : spec.std;
+    const subSpeedSet = subRecs.length > 0 ? subRecs.reduce((acc, r) => acc + (Number(r.speedSet) || spec.set), 0) / subRecs.length : spec.set;
     const subSpeedAct = subRecs.length > 0 ? subRecs.reduce((acc, r) => acc + (r.speed || subSpeedSet), 0) / subRecs.length : subSpeedSet;
     const subGood = subRecs.reduce((acc, r) => acc + (r.goodKg ?? 0), 0) || (subCount * 1100);
     const subReject = subRecs.reduce((acc, r) => acc + (r.rejectKg ?? 0), 0) || Math.round(subGood * 0.002);
@@ -816,8 +816,8 @@ export default function App() {
       const bdVal = activeRecs.reduce((acc, r) => acc + (r.breakdownMin ?? 0), 0);
       const runTimeVal = Math.max(0, planTimeVal - bdVal);
       const mePct = planTimeVal > 0 ? (runTimeVal / planTimeVal) * 100 : 100;
-      const speedStdVal = 34.67;
-      const speedSetVal = 45.00;
+      const speedStdVal = activeRecs.length > 0 ? activeRecs.reduce((acc, r) => acc + (Number(r.speedStd) || 34.67), 0) / activeRecs.length : 34.67;
+      const speedSetVal = activeRecs.length > 0 ? activeRecs.reduce((acc, r) => acc + (Number(r.speedSet) || 45.00), 0) / activeRecs.length : 45.00;
       const goodVal = activeRecs.reduce((acc, r) => acc + (r.goodKg ?? 0), 0) || (recCount * 1250);
       const rejectVal = activeRecs.reduce((acc, r) => acc + (r.rejectKg ?? 0), 0) || Math.round(goodVal * 0.002);
       const actionVal = activeRecs.reduce((acc, r) => acc + (r.actualKg ?? (r.goodKg || 0) + (r.rejectKg || 0)), 0) || (goodVal + rejectVal);
@@ -872,16 +872,18 @@ export default function App() {
         const subAction = subRecs.reduce((acc, r) => acc + (r.actualKg ?? (r.goodKg || 0) + (r.rejectKg || 0)), 0) || (subGood + subReject);
         const subTarget = subRecs.reduce((acc, r) => acc + (r.targetKg ?? 4000), 0) || (35.00 * subRun);
         const subQual = subAction > 0 ? (subGood / subAction) * 100 : 100;
+        const subSpeedStd = subRecs.length > 0 ? subRecs.reduce((acc, r) => acc + (Number(r.speedStd) || 35.00), 0) / subRecs.length : 35.00;
+        const subSpeedSet = subRecs.length > 0 ? subRecs.reduce((acc, r) => acc + (Number(r.speedSet) || 50.00), 0) / subRecs.length : 50.00;
         const subSpeedAct = subRecs.length > 0 ? subRecs.reduce((acc, r) => acc + (r.speed || 40), 0) / subRecs.length : 42.00;
-        const subPerf = 50 > 0 ? (subSpeedAct / 50.00) * 100 : 100;
+        const subPerf = subSpeedSet > 0 ? (subSpeedAct / subSpeedSet) * 100 : 100;
         const subOee = (subMe * subPerf * subQual) / 10000;
 
         exportRows.push({
           'Operator / Machine': `  - ${mName}`,
           'OEE %': `${subOee.toFixed(2)}%`,
           'Perf %': `${subPerf.toFixed(2)}%`,
-          'Speed Std.': '35.00',
-          'Speed Set': '50.00',
+          'Speed Std.': subSpeedStd.toFixed(2),
+          'Speed Set': subSpeedSet.toFixed(2),
           'Speed Act.': subSpeedAct.toFixed(2),
           'Target (kg)': Math.round(subTarget),
           'Actual (kg)': Math.round(subAction),
