@@ -5,14 +5,10 @@ service cloud.firestore {
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
-    
-    function isSignedIn() {
-      return request.auth != null;
-    }
 
     function isValidOeeRecord(data) {
       return data.keys().hasAll(['id', 'machine', 'datetime', 'operator']) &&
-             data.keys().hasOnly(['id', 'machine', 'datetime', 'reportDate', 'shift', 'shiftType', 'operator', 'speed', 'targetKg', 'actualKg', 'goodKg', 'rejectKg', 'breakdownMin', 'notes']) &&
+             data.keys().hasOnly(['id', 'machine', 'datetime', 'reportDate', 'shift', 'shiftType', 'operator', 'speed', 'targetKg', 'actualKg', 'goodKg', 'rejectKg', 'breakdownMin', 'notes', 'createdAt']) &&
              data.id is string && data.id.size() <= 64 &&
              data.machine is string && data.machine.size() <= 100 &&
              data.datetime is string && data.datetime.size() <= 64 &&
@@ -21,7 +17,7 @@ service cloud.firestore {
 
     function isValidSealTempRecord(data) {
       return data.keys().hasAll(['id', 'machine', 'datetime', 'operator']) &&
-             data.keys().hasOnly(['id', 'machine', 'datetime', 'reportDate', 'shift', 'shiftType', 'operator', 'tempFront', 'tempBack', 'tempMid', 'lot', 'teflon', 'packSealTop', 'packSealMid', 'packSealBot', 'hole', 'notes']) &&
+             data.keys().hasOnly(['id', 'machine', 'datetime', 'reportDate', 'shift', 'shiftType', 'operator', 'tempFront', 'tempBack', 'tempMid', 'lot', 'teflon', 'packSealTop', 'packSealMid', 'packSealBot', 'hole', 'notes', 'createdAt']) &&
              data.id is string && data.id.size() <= 64 &&
              data.machine is string && data.machine.size() <= 100 &&
              data.datetime is string && data.datetime.size() <= 64 &&
@@ -30,7 +26,7 @@ service cloud.firestore {
 
     function isValidFilmRollRecord(data) {
       return data.keys().hasAll(['id', 'machine', 'datetime', 'operator', 'supplier']) &&
-             data.keys().hasOnly(['id', 'machine', 'datetime', 'filmDate', 'shift', 'shiftType', 'operator', 'supplier', 'changeTime', 'tagPhoto']) &&
+             data.keys().hasOnly(['id', 'machine', 'datetime', 'filmDate', 'shift', 'shiftType', 'operator', 'supplier', 'changeTime', 'tagPhoto', 'createdAt']) &&
              data.id is string && data.id.size() <= 64 &&
              data.machine is string && data.machine.size() <= 100 &&
              data.datetime is string && data.datetime.size() <= 64 &&
@@ -43,24 +39,21 @@ service cloud.firestore {
     }
 
     match /oee_records/{recordId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(recordId) && isValidOeeRecord(request.resource.data);
-      allow update: if isSignedIn() && isValidId(recordId) && isValidOeeRecord(request.resource.data) && request.resource.data.id == resource.data.id;
-      allow delete: if isSignedIn() && isValidId(recordId);
+      allow read: if true;
+      allow create, update: if isValidId(recordId) && isValidOeeRecord(request.resource.data);
+      allow delete: if true;
     }
 
     match /seal_temp_records/{recordId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(recordId) && isValidSealTempRecord(request.resource.data);
-      allow update: if isSignedIn() && isValidId(recordId) && isValidSealTempRecord(request.resource.data) && request.resource.data.id == resource.data.id;
-      allow delete: if isSignedIn() && isValidId(recordId);
+      allow read: if true;
+      allow create, update: if isValidId(recordId) && isValidSealTempRecord(request.resource.data);
+      allow delete: if true;
     }
 
     match /film_roll_records/{recordId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(recordId) && isValidFilmRollRecord(request.resource.data);
-      allow update: if isSignedIn() && isValidId(recordId) && isValidFilmRollRecord(request.resource.data) && request.resource.data.id == resource.data.id;
-      allow delete: if isSignedIn() && isValidId(recordId);
+      allow read: if true;
+      allow create, update: if isValidId(recordId) && isValidFilmRollRecord(request.resource.data);
+      allow delete: if true;
     }
   }
 }
