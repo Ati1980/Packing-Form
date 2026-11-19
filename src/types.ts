@@ -14,6 +14,8 @@ export interface InspectionRecord {
   operator: string;
   reportDate?: string;
   speed: number;
+  speedStd?: number;
+  speedSet?: number;
   tempFront: number | null;
   tempFrontMin: number | null;
   tempFrontMax: number | null;

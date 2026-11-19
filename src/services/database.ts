@@ -53,6 +53,8 @@ export const DatabaseService = {
             shiftType: d.shiftType || '8h',
             operator: d.operator || '-',
             speed: Number(d.speed || 0),
+            speedStd: Number(d.speedStd || 34.67),
+            speedSet: Number(d.speedSet || 45.00),
             tempFront: null,
             tempFrontMin: null,
             tempFrontMax: null,
@@ -182,6 +184,8 @@ export const DatabaseService = {
         shiftType: record.shiftType,
         operator: record.operator,
         speed: record.speed,
+        speedStd: record.speedStd || 34.67,
+        speedSet: record.speedSet || 45.00,
         targetKg: record.targetKg,
         actualKg: record.actualKg,
         goodKg: record.goodKg,
@@ -199,8 +203,8 @@ export const DatabaseService = {
     const planTimeVal = record.shiftType === '12h' ? 720 : 480;
     const bdVal = record.breakdownMin || 0;
     const runTimeVal = Math.max(0, planTimeVal - bdVal);
-    const speedStdVal = 34.67;
-    const speedSetVal = 45.00;
+    const speedStdVal = record.speedStd || 34.67;
+    const speedSetVal = record.speedSet || 45.00;
     const speedActVal = record.speed || 38.5;
     const targetVal = record.targetKg || (speedStdVal * runTimeVal);
     const goodVal = record.goodKg || 12500;

@@ -439,6 +439,15 @@ export default function App() {
   const [runTime, setRunTime] = useState<string>('480');
   const [speedStd, setSpeedStd] = useState<string>('34.67');
   const [speedSet, setSpeedSet] = useState<string>('45.00');
+  const [userModifiedTarget, setUserModifiedTarget] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!userModifiedTarget) {
+      const rt = parseFloat(runTime) || 0;
+      const ss = parseFloat(speedSet) || 0;
+      setTargetKg(String(Math.round(rt * ss)));
+    }
+  }, [runTime, speedSet, userModifiedTarget]);
 
   useEffect(() => {
     const pt = shiftType === '12h' ? '720' : '480';
@@ -591,7 +600,9 @@ export default function App() {
       shiftType,
       operator,
       reportDate,
-      speed: parseFloat(speedSet) || 0,
+      speed: parseFloat(speed) || 0,
+      speedStd: parseFloat(speedStd) || 34.67,
+      speedSet: parseFloat(speedSet) || 45.00,
       tempFront: null,
       tempFrontMin: null,
       tempFrontMax: null,
