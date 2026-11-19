@@ -3177,9 +3177,18 @@ export default function App() {
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-slate-800 pt-0.5">
                       {/* Filter 1: DayStart (Date) */}
                       <div className="bg-white/95 rounded-lg p-1.5 border border-blue-200 shadow-sm flex flex-col gap-0.5">
-                        <label className="text-[9px] font-black text-blue-900 flex items-center gap-1 font-display">
-                          <span>📅 DayStart (วันที่)</span>
-                        </label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[9px] font-black text-blue-900 flex items-center gap-1 font-display">
+                            <span>📅 DayStart (วันที่)</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setDashFilterDate(dashFilterDate ? '' : new Date().toISOString().slice(0, 10))}
+                            className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition ${!dashFilterDate ? 'bg-blue-600 text-white border-blue-700 shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'}`}
+                          >
+                            {!dashFilterDate ? '✓ All (ทั้งหมด)' : 'All'}
+                          </button>
+                        </div>
                         <input
                           type="date"
                           value={dashFilterDate}
