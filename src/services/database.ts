@@ -184,8 +184,8 @@ export const DatabaseService = {
         shiftType: record.shiftType,
         operator: record.operator,
         speed: record.speed,
-        speedStd: record.speedStd !== undefined && record.speedStd !== null ? record.speedStd : 34.67,
-        speedSet: record.speedSet !== undefined && record.speedSet !== null ? record.speedSet : 45.00,
+        speedStd: record.speedStd !== undefined && record.speedStd !== null ? Number(record.speedStd) : 0,
+        speedSet: record.speedSet !== undefined && record.speedSet !== null ? Number(record.speedSet) : 0,
         targetKg: record.targetKg,
         actualKg: record.actualKg,
         goodKg: record.goodKg,
@@ -203,8 +203,8 @@ export const DatabaseService = {
     const planTimeVal = record.shiftType === '12h' ? 720 : 480;
     const bdVal = record.breakdownMin || 0;
     const runTimeVal = Math.max(0, planTimeVal - bdVal);
-    const speedStdVal = record.speedStd !== undefined && record.speedStd !== null ? record.speedStd : 34.67;
-    const speedSetVal = record.speedSet !== undefined && record.speedSet !== null ? record.speedSet : 45.00;
+    const speedStdVal = record.speedStd !== undefined && record.speedStd !== null ? Number(record.speedStd) : 0;
+    const speedSetVal = record.speedSet !== undefined && record.speedSet !== null ? Number(record.speedSet) : 0;
     const speedActVal = record.speed || 38.5;
     const targetVal = record.targetKg || (speedStdVal * runTimeVal);
     const goodVal = record.goodKg || 12500;
