@@ -33,6 +33,33 @@ export const DatabaseService = {
     }
   },
 
+  async fetchGoogleSheetViaGViz(sheetId: string): Promise<any[]> {
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&_t=${Date.now()}`;
+      const res = await fetch(url);
+      const text = await res.text();
+      const match = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
+      if (match && match[1]) {
+        const json = JSON.parse(match[1]);
+        const cols = json.table.cols.map((c: any) => c ? (c.label || c.id || '') : '');
+        const rows = json.table.rows.map((row: any) => {
+          const obj: any = {};
+          if (row && row.c) {
+            row.c.forEach((cell: any, i: number) => {
+              const colName = cols[i] || `col_${i}`;
+              obj[colName] = cell ? (cell.v !== undefined ? cell.v : cell.f) : null;
+            });
+          }
+          return obj;
+        });
+        return rows;
+      }
+    } catch (e) {
+      console.warn("GViz fetch error:", e);
+    }
+    return [];
+  },
+
   async fetchRecords(forceRefresh = false): Promise<{ data: InspectionRecord[]; synced: boolean }> {
     const localData = this.getLocalRecords();
     let firestoreRecords: InspectionRecord[] = [];
@@ -96,68 +123,58 @@ export const DatabaseService = {
     }
 
     try {
-      const requestUrl = `${GAS_API_URL}?action=getAllRecords&sheetId=${encodeURIComponent(SHEET_ID)}&sheetName=${encodeURIComponent(SHEET_NAME)}&_t=${Date.now()}`;
-      const res = await fetch(requestUrl, {
-        method: "GET",
-        mode: "cors",
-        redirect: "follow",
-        headers: { "Accept": "application/json" }
-      });
-
-      if (res.ok) {
-        const parsed = await res.json();
-        if (Array.isArray(parsed)) {
-          sheetRecords = parsed
-            .filter((r: any) => r && (r.datetime || r['ข้อมูลวันที่']))
-            .map((r: any) => ({
-              id: r.id || (Math.random().toString(36).slice(2, 9)),
-              recordType: 'oee' as const,
-              machine: r.machine ?? r['เครื่องจักร'] ?? 'เครื่องบรรจุ 1Kg No.1',
-              datetime: r.datetime ?? r['ข้อมูลวันที่'] ?? new Date().toISOString(),
-              reportDate: r.reportDate ?? r['ข้อมูลวันที่'] ?? new Date().toISOString().slice(0, 10),
-              shift: r.shift ?? r['shift'] ?? 'A',
-              shiftType: r.shiftType ?? r['shift duration type'] ?? '8h',
-              operator: r.operator ?? r['ชื่อผู้บันทึก'] ?? '-',
-              speed: Number(r.speed ?? r['Speed Actual'] ?? 0),
-              speedStd: Number(r.speedStd ?? 34.67),
-              speedSet: Number(r.speedSet ?? 45.00),
-              tempFront: null,
-              tempFrontMin: null,
-              tempFrontMax: null,
-              tfStatus: 'pass',
-              tempBack: null,
-              tempBackMin: null,
-              tempBackMax: null,
-              tbStatus: 'pass',
-              tempMid: null,
-              tempMidMin: null,
-              tempMidMax: null,
-              tmStatus: 'pass',
-              timeFrontBack: null,
-              timeFrontBackMin: null,
-              timeFrontBackMax: null,
-              timeFbStatus: 'pass',
-              timeMid: null,
-              timeMidMin: null,
-              timeMidMax: null,
-              timeMStatus: 'pass',
-              lot: 'pass',
-              teflon: 'pass',
-              packSealTop: 'pass',
-              packSealMid: 'pass',
-              packSealBot: 'pass',
-              hole: 'pass',
-              targetKg: Number(r.targetKg ?? r['Target'] ?? 15000),
-              actualKg: Number(r.actualKg ?? r['Actual'] ?? 12500),
-              goodKg: Number(r.goodKg ?? r['Good'] ?? 12500),
-              rejectKg: Number(r.rejectKg ?? r['Reject'] ?? 0),
-              breakdownMin: Number(r.breakdownMin ?? r['BD'] ?? 0),
-              notes: r.notes ?? ''
-            }));
-        }
+      const gvizRows = await this.fetchGoogleSheetViaGViz(SHEET_ID);
+      if (Array.isArray(gvizRows) && gvizRows.length > 0) {
+        sheetRecords = gvizRows
+          .filter((r: any) => r && (r.datetime || r['ข้อมูลวันที่'] || r['รายงานวันที่']))
+          .map((r: any) => ({
+            id: r.id || (Math.random().toString(36).slice(2, 9)),
+            recordType: 'oee' as const,
+            machine: r.machine ?? r['เครื่องจักร'] ?? 'เครื่องบรรจุ 1Kg No.1',
+            datetime: r.datetime ?? r['ข้อมูลวันที่'] ?? r['รายงานวันที่'] ?? new Date().toISOString(),
+            reportDate: r.reportDate ?? r['ข้อมูลวันที่'] ?? r['รายงานวันที่'] ?? new Date().toISOString().slice(0, 10),
+            shift: r.shift ?? r['shift'] ?? r['กะ'] ?? 'A',
+            shiftType: r.shiftType ?? r['shift duration type'] ?? '8h',
+            operator: r.operator ?? r['ชื่อผู้บันทึก'] ?? r['Operator'] ?? '-',
+            speed: Number(r.speed ?? r['Speed Actual'] ?? 0),
+            speedStd: Number(r.speedStd ?? r['Speed Std'] ?? 34.67),
+            speedSet: Number(r.speedSet ?? r['Speed Set'] ?? 45.00),
+            tempFront: null,
+            tempFrontMin: null,
+            tempFrontMax: null,
+            tfStatus: 'pass',
+            tempBack: null,
+            tempBackMin: null,
+            tempBackMax: null,
+            tbStatus: 'pass',
+            tempMid: null,
+            tempMidMin: null,
+            tempMidMax: null,
+            tmStatus: 'pass',
+            timeFrontBack: null,
+            timeFrontBackMin: null,
+            timeFrontBackMax: null,
+            timeFbStatus: 'pass',
+            timeMid: null,
+            timeMidMin: null,
+            timeMidMax: null,
+            timeMStatus: 'pass',
+            lot: 'pass',
+            teflon: 'pass',
+            packSealTop: 'pass',
+            packSealMid: 'pass',
+            packSealBot: 'pass',
+            hole: 'pass',
+            targetKg: Number(r.targetKg ?? r['Target'] ?? 15000),
+            actualKg: Number(r.actualKg ?? r['Actual'] ?? 12500),
+            goodKg: Number(r.goodKg ?? r['Good'] ?? 12500),
+            rejectKg: Number(r.rejectKg ?? r['Reject'] ?? 0),
+            breakdownMin: Number(r.breakdownMin ?? r['BD'] ?? 0),
+            notes: r.notes ?? ''
+          }));
       }
     } catch (err) {
-      console.warn("Google Sheet fetch warning:", err);
+      console.warn("Google Sheet GViz fetch warning:", err);
     }
 
     const map = new Map<string, InspectionRecord>();
