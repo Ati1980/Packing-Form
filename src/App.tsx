@@ -596,6 +596,57 @@ export default function App() {
   const speedChartInstance = useRef<Chart | null>(null);
   const tempChartInstance = useRef<Chart | null>(null);
 
+  // Sliding Nav Indicator (Desktop & Mobile)
+  const [hoveredNav, setHoveredNav] = useState<string | null>(null);
+  const navBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [navIndicatorStyle, setNavIndicatorStyle] = useState<{ left: number; width: number; opacity: number }>({
+    left: 4,
+    width: 0,
+    opacity: 0
+  });
+
+  const [mobileHoveredNav, setMobileHoveredNav] = useState<string | null>(null);
+  const mobileNavBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [mobileNavIndicatorStyle, setMobileNavIndicatorStyle] = useState<{ left: number; width: number; opacity: number }>({
+    left: 8,
+    width: 0,
+    opacity: 0
+  });
+
+  const activeNavKey = ['historyHub', 'historySeal', 'historyOee', 'historyFilm'].includes(currentView)
+    ? 'historyHub'
+    : currentView;
+  const targetNavKey = hoveredNav || activeNavKey;
+  const mobileTargetNavKey = mobileHoveredNav || activeNavKey;
+
+  useEffect(() => {
+    const updateIndicator = () => {
+      const btn = navBtnRefs.current[targetNavKey];
+      if (btn && btn.offsetWidth > 0) {
+        setNavIndicatorStyle({
+          left: btn.offsetLeft,
+          width: btn.offsetWidth,
+          opacity: 1
+        });
+      }
+      const mBtn = mobileNavBtnRefs.current[mobileTargetNavKey];
+      if (mBtn && mBtn.offsetWidth > 0) {
+        setMobileNavIndicatorStyle({
+          left: mBtn.offsetLeft,
+          width: mBtn.offsetWidth,
+          opacity: 1
+        });
+      }
+    };
+    updateIndicator();
+    const raf = requestAnimationFrame(updateIndicator);
+    window.addEventListener('resize', updateIndicator);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', updateIndicator);
+    };
+  }, [targetNavKey, mobileTargetNavKey]);
+
   // Clock effect
   useEffect(() => {
     const updateClock = () => {
@@ -1028,6 +1079,7 @@ export default function App() {
     const speeds = recs.map(r => r.speed);
     const gridColor = '#e2e8f0';
     const textColor = '#334155';
+    Chart.defaults.font.family = "'Roboto', 'Noto Sans Thai', 'IBM Plex Sans Thai', sans-serif";
 
     if (speedChartInstance.current) speedChartInstance.current.destroy();
     if (tempChartInstance.current) tempChartInstance.current.destroy();
@@ -1147,37 +1199,66 @@ export default function App() {
             </div>
 
             {/* Desktop Navigation Dock */}
-            <nav className={`hidden md:flex p-1 rounded-xl border gap-1 shadow-inner ${navDockBg}`}>
-              <button
-                onClick={() => setCurrentView('form')}
-                className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-black transition-all ${currentView === 'form' ? 'bg-blue-50 text-blue-700 border border-blue-300 shadow-sm scale-105' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'}`}
-              >
-                <ClipboardEdit className="w-3.5 h-3.5 text-blue-600" /> บันทึก Seal Temp
-              </button>
-              <button
-                onClick={() => setCurrentView('oee')}
-                className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-black transition-all ${currentView === 'oee' ? 'bg-blue-50 text-blue-700 border border-blue-300 shadow-sm scale-105' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'}`}
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> บันทึก OEE
-              </button>
-              <button
-                onClick={() => setCurrentView('film')}
-                className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-black transition-all ${currentView === 'film' ? 'bg-blue-50 text-blue-700 border border-blue-300 shadow-sm scale-105' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'}`}
-              >
-                <svg className="w-3.5 h-3.5 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><line x1="12" y1="3" x2="12" y2="8.5"/></svg> บันทึกม้วนฟิล์ม
-              </button>
-              <button
-                onClick={() => setCurrentView('historyHub')}
-                className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-black transition-all ${['historyHub', 'historySeal', 'historyOee', 'historyFilm'].includes(currentView) ? 'bg-blue-50 text-blue-700 border border-blue-300 shadow-sm scale-105' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'}`}
-              >
-                <Clock className="w-3.5 h-3.5 text-blue-500" /> ประวัติ
-              </button>
-              <button
-                onClick={() => setCurrentView('dashboard')}
-                className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-black transition-all ${currentView === 'dashboard' ? 'bg-blue-50 text-blue-700 border border-blue-300 shadow-sm scale-105' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'}`}
-              >
-                <Award className="w-3.5 h-3.5 text-indigo-500" /> แดชบอร์ด
-              </button>
+            <nav
+              onMouseLeave={() => setHoveredNav(null)}
+              className={`hidden md:flex relative items-center p-1 rounded-xl border gap-1 shadow-inner ${navDockBg}`}
+            >
+              {[
+                {
+                  key: 'form',
+                  label: 'บันทึก Seal Temp',
+                  icon: <ClipboardEdit className={`w-3.5 h-3.5 transition-colors duration-300 ${targetNavKey === 'form' ? 'text-white' : 'text-blue-600'}`} />
+                },
+                {
+                  key: 'oee',
+                  label: 'บันทึก OEE',
+                  icon: <FileSpreadsheet className={`w-3.5 h-3.5 transition-colors duration-300 ${targetNavKey === 'oee' ? 'text-white' : 'text-emerald-600'}`} />
+                },
+                {
+                  key: 'film',
+                  label: 'บันทึกม้วนฟิล์ม',
+                  icon: (
+                    <svg className={`w-3.5 h-3.5 transition-colors duration-300 ${targetNavKey === 'film' ? 'text-white' : 'text-purple-600'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><line x1="12" y1="3" x2="12" y2="8.5"/>
+                    </svg>
+                  )
+                },
+                {
+                  key: 'historyHub',
+                  label: 'ประวัติ',
+                  icon: <Clock className={`w-3.5 h-3.5 transition-colors duration-300 ${targetNavKey === 'historyHub' ? 'text-white' : 'text-blue-500'}`} />
+                },
+                {
+                  key: 'dashboard',
+                  label: 'แดชบอร์ด',
+                  icon: <Award className={`w-3.5 h-3.5 transition-colors duration-300 ${targetNavKey === 'dashboard' ? 'text-white' : 'text-indigo-500'}`} />
+                }
+              ].map(item => {
+                const isHighlighted = targetNavKey === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    ref={el => { navBtnRefs.current[item.key] = el; }}
+                    onClick={() => setCurrentView(item.key as any)}
+                    onMouseEnter={() => setHoveredNav(item.key)}
+                    className={`relative z-10 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black transition-colors duration-300 whitespace-nowrap ${
+                      isHighlighted ? 'text-white' : 'text-slate-700 hover:text-slate-900'
+                    }`}
+                  >
+                    {item.icon} {item.label}
+                  </button>
+                );
+              })}
+              <span
+                aria-hidden="true"
+                className="absolute top-1 bottom-1 rounded-lg pointer-events-none transition-all duration-500 ease-out shadow-md z-0"
+                style={{
+                  left: `${navIndicatorStyle.left}px`,
+                  width: `${navIndicatorStyle.width}px`,
+                  opacity: navIndicatorStyle.opacity,
+                  background: 'linear-gradient(to right, #3498db, #8e44ad)'
+                }}
+              />
             </nav>
 
           </div>
@@ -2314,7 +2395,24 @@ export default function App() {
         {/* =========================================================
             HISTORY HUB VIEW (ประวัติ - 3 Cards Selection)
            ========================================================= */}
-        {currentView === 'historyHub' && (
+        {currentView === 'historyHub' && (() => {
+          const sealCount = (sealTempRecords.length > 0
+            ? sealTempRecords
+            : records.filter(r => r.recordType === 'sealTemp' || (!r.recordType && r.tempFront != null))
+          ).length;
+          const oeeCount = records.filter(item => {
+            const r = item as any;
+            return r.recordType === 'oee' ||
+              r.targetKg !== undefined || r.target !== undefined ||
+              r.goodKg !== undefined || r.good !== undefined ||
+              r.actualKg !== undefined || r.actual !== undefined ||
+              r.speed !== undefined || r.speedActual !== undefined ||
+              r['Target'] !== undefined || r['Good'] !== undefined ||
+              r.tempFront === undefined || r.tempFront === null;
+          }).length;
+          const filmCount = filmRecords.length;
+
+          return (
           <motion.main
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
@@ -2336,8 +2434,14 @@ export default function App() {
                   className={`backdrop-blur-xl border rounded-3xl p-6 shadow-xl hover:shadow-2xl transition-all cursor-pointer group bg-white border-slate-200 hover:border-blue-500 hover:scale-[1.02] flex flex-col justify-between space-y-4`}
                 >
                   <div className="space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shadow-md group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                      <Thermometer className="w-6 h-6" />
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shadow-md group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
+                        <Thermometer className="w-6 h-6" />
+                      </div>
+                      <div className="px-3.5 py-1.5 rounded-2xl bg-blue-50 text-blue-700 border border-blue-200 shadow-sm flex flex-col items-end justify-center leading-none">
+                        <span className="text-2xl md:text-3xl font-black font-mono tracking-tight">{sealCount.toLocaleString()}</span>
+                        <span className="text-[10px] font-bold text-blue-600/80 mt-0.5">รายการ</span>
+                      </div>
                     </div>
                     <div>
                       <h3 className="text-base font-black text-slate-900 font-display">ประวัติ Seal Temp</h3>
@@ -2356,8 +2460,14 @@ export default function App() {
                   className={`backdrop-blur-xl border rounded-3xl p-6 shadow-xl hover:shadow-2xl transition-all cursor-pointer group bg-white border-slate-200 hover:border-emerald-500 hover:scale-[1.02] flex flex-col justify-between space-y-4`}
                 >
                   <div className="space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shadow-md group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                      <TrendingUp className="w-6 h-6" />
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shadow-md group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0">
+                        <TrendingUp className="w-6 h-6" />
+                      </div>
+                      <div className="px-3.5 py-1.5 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm flex flex-col items-end justify-center leading-none">
+                        <span className="text-2xl md:text-3xl font-black font-mono tracking-tight">{oeeCount.toLocaleString()}</span>
+                        <span className="text-[10px] font-bold text-emerald-600/80 mt-0.5">รายการ</span>
+                      </div>
                     </div>
                     <div>
                       <h3 className="text-base font-black text-slate-900 font-display">ประวัติ OEE</h3>
@@ -2376,8 +2486,14 @@ export default function App() {
                   className={`backdrop-blur-xl border rounded-3xl p-6 shadow-xl hover:shadow-2xl transition-all cursor-pointer group bg-white border-slate-200 hover:border-purple-500 hover:scale-[1.02] flex flex-col justify-between space-y-4`}
                 >
                   <div className="space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shadow-md group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                      <Box className="w-6 h-6" />
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shadow-md group-hover:bg-purple-600 group-hover:text-white transition-colors shrink-0">
+                        <Box className="w-6 h-6" />
+                      </div>
+                      <div className="px-3.5 py-1.5 rounded-2xl bg-purple-50 text-purple-700 border border-purple-200 shadow-sm flex flex-col items-end justify-center leading-none">
+                        <span className="text-2xl md:text-3xl font-black font-mono tracking-tight">{filmCount.toLocaleString()}</span>
+                        <span className="text-[10px] font-bold text-purple-600/80 mt-0.5">รายการ</span>
+                      </div>
                     </div>
                     <div>
                       <h3 className="text-base font-black text-slate-900 font-display">ประวัติม้วนฟิล์ม</h3>
@@ -2392,7 +2508,8 @@ export default function App() {
               </div>
             </div>
           </motion.main>
-        )}
+          );
+        })()}
 
         {/* =========================================================
             HISTORY SEAL TEMP VIEW (ประวัติ Seal Temp)
@@ -2431,7 +2548,16 @@ export default function App() {
               {/* Filter Bar for Seal Temp History */}
               <div className={`backdrop-blur-xl border rounded-2xl p-3 shadow-lg ${cardBg} grid grid-cols-1 sm:grid-cols-4 gap-2.5`}>
                 <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">📅 วันที่ (Date)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-black text-slate-600 block">📅 วันที่ (Date)</label>
+                    <button
+                      type="button"
+                      onClick={() => setSealFilterDate(sealFilterDate ? '' : new Date().toISOString().slice(0, 10))}
+                      className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition ${!sealFilterDate ? 'bg-blue-600 text-white border-blue-700 shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'}`}
+                    >
+                      {!sealFilterDate ? '✓ All (ทั้งหมด)' : 'All'}
+                    </button>
+                  </div>
                   <input
                     type="date"
                     value={sealFilterDate}
@@ -2636,7 +2762,16 @@ export default function App() {
               {/* Filter Bar for OEE History */}
               <div className={`backdrop-blur-xl border rounded-2xl p-3 shadow-lg ${cardBg} grid grid-cols-1 sm:grid-cols-4 gap-2.5`}>
                 <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">📅 วันที่ (Date)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-black text-slate-600 block">📅 วันที่ (Date)</label>
+                    <button
+                      type="button"
+                      onClick={() => setOeeFilterDate(oeeFilterDate ? '' : new Date().toISOString().slice(0, 10))}
+                      className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition ${!oeeFilterDate ? 'bg-blue-600 text-white border-blue-700 shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'}`}
+                    >
+                      {!oeeFilterDate ? '✓ All (ทั้งหมด)' : 'All'}
+                    </button>
+                  </div>
                   <input
                     type="date"
                     value={oeeFilterDate}
@@ -2871,7 +3006,16 @@ export default function App() {
               {/* Filter Bar for Film Roll History */}
               <div className={`backdrop-blur-xl border rounded-2xl p-3 shadow-lg ${cardBg} grid grid-cols-1 sm:grid-cols-5 gap-2.5`}>
                 <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">📅 วันที่ (Date)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-black text-slate-600 block">📅 วันที่ (Date)</label>
+                    <button
+                      type="button"
+                      onClick={() => setFilmHistFilterDate(filmHistFilterDate ? '' : new Date().toISOString().slice(0, 10))}
+                      className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition ${!filmHistFilterDate ? 'bg-purple-600 text-white border-purple-700 shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'}`}
+                    >
+                      {!filmHistFilterDate ? '✓ All (ทั้งหมด)' : 'All'}
+                    </button>
+                  </div>
                   <input
                     type="date"
                     value={filmHistFilterDate}
@@ -3448,42 +3592,75 @@ export default function App() {
         )}
 
         {/* Mobile Bottom Tabbar */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 backdrop-blur-2xl border-t flex px-2 py-2 justify-around shadow-2xl bg-white/95 border-slate-200">
-          <button
-            onClick={() => setCurrentView('form')}
-            className={`flex flex-col items-center gap-0.5 text-[9px] font-black px-2 py-1 rounded-xl transition-all ${currentView === 'form' ? 'bg-blue-50 text-blue-700 border border-blue-300 shadow-sm' : 'text-slate-600'}`}
-          >
-            <ClipboardEdit className="w-4 h-4 text-blue-600" /> ตรวจเช็ค
-          </button>
-          <button
-            onClick={() => setCurrentView('oee')}
-            className={`flex flex-col items-center gap-0.5 text-[9px] font-black px-2 py-1 rounded-xl transition-all ${currentView === 'oee' ? 'bg-blue-50 text-blue-700 border border-blue-300 shadow-sm' : 'text-slate-600'}`}
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> บันทึก OEE
-          </button>
-          <button
-            onClick={() => setCurrentView('film')}
-            className={`flex flex-col items-center gap-0.5 text-[9px] font-black px-2 py-1 rounded-xl transition-all ${currentView === 'film' ? 'bg-blue-50 text-blue-700 border border-blue-300 shadow-sm' : 'text-slate-600'}`}
-          >
-            <svg className="w-4 h-4 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><line x1="12" y1="3" x2="12" y2="8.5"/></svg> ม้วนฟิล์ม
-          </button>
-          <button
-            onClick={() => setCurrentView('historyHub')}
-            className={`flex flex-col items-center gap-0.5 text-[9px] font-black px-2 py-1 rounded-xl transition-all relative ${['historyHub', 'historySeal', 'historyOee', 'historyFilm'].includes(currentView) ? 'bg-blue-50 text-blue-700 border border-blue-300 shadow-sm' : 'text-slate-600'}`}
-          >
-            <Clock className="w-4 h-4 text-amber-500" /> ประวัติ
-            {todayRecords.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-rose-600 text-white text-[9px] px-1 rounded-full font-mono font-black shadow-sm">
-                {todayRecords.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setCurrentView('dashboard')}
-            className={`flex flex-col items-center gap-0.5 text-[9px] font-black px-2 py-1 rounded-xl transition-all ${currentView === 'dashboard' ? 'bg-blue-50 text-blue-700 border border-blue-300 shadow-sm' : 'text-slate-600'}`}
-          >
-            <TrendingUp className="w-4 h-4 text-emerald-500" /> แดชบอร์ด
-          </button>
+        <nav
+          onMouseLeave={() => setMobileHoveredNav(null)}
+          className="md:hidden fixed bottom-0 left-0 right-0 z-50 backdrop-blur-2xl border-t flex px-2 py-2 justify-around items-center shadow-2xl bg-white/95 border-slate-200"
+        >
+          {[
+            {
+              key: 'form',
+              label: 'ตรวจเช็ค',
+              icon: <ClipboardEdit className={`w-4 h-4 transition-colors duration-300 ${mobileTargetNavKey === 'form' ? 'text-white' : 'text-blue-600'}`} />
+            },
+            {
+              key: 'oee',
+              label: 'บันทึก OEE',
+              icon: <FileSpreadsheet className={`w-4 h-4 transition-colors duration-300 ${mobileTargetNavKey === 'oee' ? 'text-white' : 'text-emerald-600'}`} />
+            },
+            {
+              key: 'film',
+              label: 'ม้วนฟิล์ม',
+              icon: (
+                <svg className={`w-4 h-4 transition-colors duration-300 ${mobileTargetNavKey === 'film' ? 'text-white' : 'text-purple-600'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><line x1="12" y1="3" x2="12" y2="8.5"/>
+                </svg>
+              )
+            },
+            {
+              key: 'historyHub',
+              label: 'ประวัติ',
+              icon: <Clock className={`w-4 h-4 transition-colors duration-300 ${mobileTargetNavKey === 'historyHub' ? 'text-white' : 'text-amber-500'}`} />,
+              badge: todayRecords.length
+            },
+            {
+              key: 'dashboard',
+              label: 'แดชบอร์ด',
+              icon: <TrendingUp className={`w-4 h-4 transition-colors duration-300 ${mobileTargetNavKey === 'dashboard' ? 'text-white' : 'text-emerald-500'}`} />
+            }
+          ].map(item => {
+            const isHighlighted = mobileTargetNavKey === item.key;
+            return (
+              <button
+                key={item.key}
+                ref={el => { mobileNavBtnRefs.current[item.key] = el; }}
+                onClick={() => {
+                  setMobileHoveredNav(null);
+                  setCurrentView(item.key as any);
+                }}
+                onMouseEnter={() => setMobileHoveredNav(item.key)}
+                className={`relative z-10 flex flex-col items-center gap-0.5 text-[9px] font-black px-3 py-1.5 rounded-xl transition-colors duration-300 ${
+                  isHighlighted ? 'text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {item.icon} {item.label}
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span className="absolute -top-1 -right-1 z-20 bg-rose-600 text-white text-[9px] px-1 rounded-full font-mono font-black shadow-sm">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          <span
+            aria-hidden="true"
+            className="absolute top-1.5 bottom-1.5 rounded-xl pointer-events-none transition-all duration-500 ease-out shadow-md z-0"
+            style={{
+              left: `${mobileNavIndicatorStyle.left}px`,
+              width: `${mobileNavIndicatorStyle.width}px`,
+              opacity: mobileNavIndicatorStyle.opacity,
+              background: 'linear-gradient(to right, #3498db, #8e44ad)'
+            }}
+          />
         </nav>
       </div>
 
