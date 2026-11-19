@@ -291,6 +291,64 @@ const computeOperatorData = (opName: string, records: InspectionRecord[], dashFi
   };
 };
 
+const getMachineOnlyList = (records: InspectionRecord[], dashFilterDate: string, dashFilterShift: string, dashFilterOperator: string, dashFilterMachine: string) => {
+  const filtered = records.filter(r => {
+    if (dashFilterDate) {
+      const matchDatetime = r.datetime && r.datetime.startsWith(dashFilterDate);
+      const matchReportDate = r.reportDate && r.reportDate === dashFilterDate;
+      if (!matchDatetime && !matchReportDate) return false;
+    }
+    if (dashFilterShift !== 'all' && r.shift !== dashFilterShift) return false;
+    if (dashFilterOperator !== 'all' && r.operator !== dashFilterOperator) return false;
+    if (dashFilterMachine !== 'all' && r.machine !== dashFilterMachine) return false;
+    return true;
+  });
+
+  let machineNames = MACHINES.map(m => m.name);
+  if (dashFilterMachine !== 'all') {
+    machineNames = [dashFilterMachine];
+  }
+
+  return machineNames.map(mName => {
+    const subRecs = filtered.filter(r => r.machine === mName);
+    const subCount = subRecs.length || 1;
+    const subPlan = subRecs.reduce((acc, r) => acc + (r.shiftType === '12h' ? 720 : 480), 0);
+    const subBd = subRecs.reduce((acc, r) => acc + (r.breakdownMin ?? 0), 0);
+    const subRun = Math.max(0, subPlan - subBd);
+    const spec = getMachineSpec(mName);
+    const subSpeedStd = subRecs.length > 0 ? subRecs.reduce((acc, r) => acc + (Number(r.speedStd) || spec.std), 0) / subRecs.length : spec.std;
+    const subSpeedSet = subRecs.length > 0 ? subRecs.reduce((acc, r) => acc + (Number(r.speedSet) || spec.set), 0) / subRecs.length : spec.set;
+    const subSpeedAct = subRecs.length > 0 ? subRecs.reduce((acc, r) => acc + (r.speed || subSpeedSet), 0) / subRecs.length : spec.set;
+    const subGood = subRecs.reduce((acc, r) => acc + (r.goodKg ?? 0), 0);
+    const subReject = subRecs.reduce((acc, r) => acc + (r.rejectKg ?? 0), 0);
+    const subAction = subRecs.reduce((acc, r) => acc + (r.actualKg ?? (r.goodKg || 0) + (r.rejectKg || 0)), 0);
+    const subTarget = subRecs.reduce((acc, r) => acc + (r.targetKg ?? (subSpeedStd * subRun)), 0) || (subSpeedStd * subRun);
+    const subMe = subPlan > 0 ? (subRun / subPlan) * 100 : 100;
+    const subPerf = subSpeedSet > 0 ? (subSpeedAct / subSpeedSet) * 100 : 100;
+    const subQual = subAction > 0 ? (subGood / subAction) * 100 : 100;
+    const subOee = (subMe * subPerf * subQual) / 10000;
+
+    return {
+      name: mName,
+      planTime: subPlan,
+      bd: subBd,
+      runTime: subRun,
+      speedStd: subSpeedStd,
+      speedSet: subSpeedSet,
+      speedAct: subSpeedAct,
+      target: subTarget,
+      actual: subAction,
+      good: subGood,
+      reject: subReject,
+      me: subMe,
+      perf: subPerf,
+      quality: subQual,
+      oee: subOee,
+      hasRecords: subRecs.length > 0
+    };
+  }).filter(m => dashFilterMachine !== 'all' || m.hasRecords || m.planTime > 0);
+};
+
 export default function App() {
   const [currentView, setCurrentView] = useState<'form' | 'oee' | 'film' | 'historyHub' | 'historySeal' | 'historyOee' | 'historyFilm' | 'dashboard'>('form');
   const [selectedMachine, setSelectedMachine] = useState<number>(1);
@@ -498,6 +556,7 @@ export default function App() {
   const [dashFilterShift, setDashFilterShift] = useState<string>('all');
   const [dashFilterOperator, setDashFilterOperator] = useState<string>('all');
   const [dashFilterMachine, setDashFilterMachine] = useState<string>('all');
+  const [dashViewMode, setDashViewMode] = useState<'operator' | 'machineOnly' | 'operatorOnly'>('operator');
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
   const filteredDashRecords = records.filter(r => {
@@ -3095,8 +3154,8 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Filter Controls Row (4 Filters: Date, Shift, Operator, Machine) */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-800 pt-0.5">
+                    {/* Filter Controls Row (5 Filters: Date, Shift, Operator, Machine, ViewMode) */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-slate-800 pt-0.5">
                       {/* Filter 1: DayStart (Date) */}
                       <div className="bg-white/95 rounded-lg p-1.5 border border-blue-200 shadow-sm flex flex-col gap-0.5">
                         <label className="text-[9px] font-black text-blue-900 flex items-center gap-1 font-display">
@@ -3164,6 +3223,22 @@ export default function App() {
                           ))}
                         </select>
                       </div>
+
+                      {/* Filter 5: View Mode */}
+                      <div className="bg-white/95 rounded-lg p-1.5 border border-blue-200 shadow-sm flex flex-col gap-0.5 col-span-2 sm:col-span-1">
+                        <label className="text-[9px] font-black text-blue-900 flex items-center gap-1 font-display">
+                          <span>📊 View Mode (มุมมองรายงาน)</span>
+                        </label>
+                        <select
+                          value={dashViewMode}
+                          onChange={e => setDashViewMode(e.target.value as any)}
+                          className="w-full text-[11px] font-bold text-slate-800 bg-white border border-slate-300 rounded-md py-1 px-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="operator">👤 พนักงาน + เครื่อง</option>
+                          <option value="machineOnly">🏭 เฉพาะเครื่องจักร</option>
+                          <option value="operatorOnly">👨‍💼 เฉพาะพนักงาน</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
 
@@ -3191,6 +3266,40 @@ export default function App() {
                       </thead>
                       <tbody className="divide-y divide-slate-200">
                         {(() => {
+                          if (dashViewMode === 'machineOnly') {
+                            const machineList = getMachineOnlyList(records, dashFilterDate, dashFilterShift, dashFilterOperator, dashFilterMachine);
+                            if (machineList.length === 0) {
+                              return (
+                                <tr>
+                                  <td colSpan={15} className="p-8 text-center text-slate-500 font-semibold bg-slate-50">
+                                    ⚠️ ไม่พบข้อมูลเครื่องจักรตามเงื่อนไขการกรองที่เลือก
+                                  </td>
+                                </tr>
+                              );
+                            }
+                            return machineList.map((mRow) => (
+                              <tr key={mRow.name} className="hover:bg-slate-50 transition text-slate-700 font-bold bg-white">
+                                <td className="p-2.5 border-r border-slate-200 font-semibold flex items-center gap-1.5 font-display">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> ⚙️ {mRow.name}
+                                </td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200 text-blue-700 font-black">{mRow.oee.toFixed(2)}%</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200 text-blue-700 font-black">{mRow.perf.toFixed(2)}%</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.speedStd.toFixed(2)}</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.speedSet.toFixed(2)}</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.speedAct.toFixed(2)}</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{Math.round(mRow.target).toLocaleString()}</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{Math.round(mRow.actual).toLocaleString()}</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{Math.round(mRow.good).toLocaleString()}</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{Math.round(mRow.reject).toLocaleString()}</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.me.toFixed(2)}%</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.quality.toFixed(2)}%</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.planTime.toLocaleString()}</td>
+                                <td className="p-2.5 text-right font-mono border-r border-slate-200">{mRow.runTime.toLocaleString()}</td>
+                                <td className="p-2.5 text-right font-mono">{mRow.bd.toLocaleString()}</td>
+                              </tr>
+                            ));
+                          }
+
                           const operatorDataList = displayOperators
                             .map(opName => computeOperatorData(opName, records, dashFilterMachine, dashFilterDate, dashFilterShift, dashFilterOperator))
                             .filter(d => d.machineRows.length > 0);
@@ -3229,7 +3338,7 @@ export default function App() {
                                   <td className="p-2.5 text-right font-mono">{opData.bd.toLocaleString()}</td>
                                 </tr>
 
-                                {opData.machineRows.map((mRow) => (
+                                {dashViewMode !== 'operatorOnly' && opData.machineRows.map((mRow) => (
                                   <tr key={mRow.name} className="hover:bg-slate-50 transition text-slate-700">
                                     <td className="p-2.5 pl-8 border-r border-slate-200 font-semibold flex items-center gap-1.5">
                                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> {mRow.name}
@@ -3257,25 +3366,27 @@ export default function App() {
                       </tbody>
                       <tfoot>
                         {(() => {
-                          const operatorDataList = displayOperators
-                            .map(opName => computeOperatorData(opName, records, dashFilterMachine, dashFilterDate, dashFilterShift, dashFilterOperator))
-                            .filter(d => d.machineRows.length > 0);
+                          const listForFooter = dashViewMode === 'machineOnly'
+                            ? getMachineOnlyList(records, dashFilterDate, dashFilterShift, dashFilterOperator, dashFilterMachine)
+                            : displayOperators
+                                .map(opName => computeOperatorData(opName, records, dashFilterMachine, dashFilterDate, dashFilterShift, dashFilterOperator))
+                                .filter(d => d.machineRows.length > 0);
 
-                          const totPlan = operatorDataList.reduce((acc, d) => acc + d.planTime, 0);
-                          const totRun = operatorDataList.reduce((acc, d) => acc + d.runTime, 0);
-                          const totBd = operatorDataList.reduce((acc, d) => acc + d.bd, 0);
-                          const totTarget = operatorDataList.reduce((acc, d) => acc + d.target, 0);
-                          const totAction = operatorDataList.reduce((acc, d) => acc + d.actual, 0);
-                          const totGood = operatorDataList.reduce((acc, d) => acc + d.good, 0);
-                          const totReject = operatorDataList.reduce((acc, d) => acc + d.reject, 0);
+                          const totPlan = listForFooter.reduce((acc, d) => acc + d.planTime, 0);
+                          const totRun = listForFooter.reduce((acc, d) => acc + d.runTime, 0);
+                          const totBd = listForFooter.reduce((acc, d) => acc + d.bd, 0);
+                          const totTarget = listForFooter.reduce((acc, d) => acc + d.target, 0);
+                          const totAction = listForFooter.reduce((acc, d) => acc + d.actual, 0);
+                          const totGood = listForFooter.reduce((acc, d) => acc + d.good, 0);
+                          const totReject = listForFooter.reduce((acc, d) => acc + d.reject, 0);
 
-                          const avgOee = operatorDataList.length > 0 ? operatorDataList.reduce((acc, d) => acc + d.oee, 0) / operatorDataList.length : 0;
-                          const avgPerf = operatorDataList.length > 0 ? operatorDataList.reduce((acc, d) => acc + d.perf, 0) / operatorDataList.length : 0;
-                          const avgStd = operatorDataList.length > 0 ? operatorDataList.reduce((acc, d) => acc + d.speedStd, 0) / operatorDataList.length : 34.67;
-                          const avgSet = operatorDataList.length > 0 ? operatorDataList.reduce((acc, d) => acc + d.speedSet, 0) / operatorDataList.length : 45.00;
-                          const avgAct = operatorDataList.length > 0 ? operatorDataList.reduce((acc, d) => acc + d.speedAct, 0) / operatorDataList.length : 39.40;
-                          const avgMe = operatorDataList.length > 0 ? operatorDataList.reduce((acc, d) => acc + d.me, 0) / operatorDataList.length : 100;
-                          const avgQual = operatorDataList.length > 0 ? operatorDataList.reduce((acc, d) => acc + d.quality, 0) / operatorDataList.length : 100;
+                          const avgOee = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.oee, 0) / listForFooter.length : 0;
+                          const avgPerf = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.perf, 0) / listForFooter.length : 0;
+                          const avgStd = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.speedStd, 0) / listForFooter.length : 34.67;
+                          const avgSet = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.speedSet, 0) / listForFooter.length : 45.00;
+                          const avgAct = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.speedAct, 0) / listForFooter.length : 39.40;
+                          const avgMe = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.me, 0) / listForFooter.length : 100;
+                          const avgQual = listForFooter.length > 0 ? listForFooter.reduce((acc, d) => acc + d.quality, 0) / listForFooter.length : 100;
 
                           return (
                             <tr className="bg-blue-700 text-white font-black sticky bottom-0 z-10 shadow">
