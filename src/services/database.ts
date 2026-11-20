@@ -13,6 +13,106 @@ const CACHE_KEY = "am_records";
 const CACHE_TIME_KEY = "am_records_last_sync";
 const CACHE_EXPIRY_MS = 5 * 60 * 1000;
 
+const SEAL_CACHE_KEY = "am_seal_temp_records";
+const FILM_CACHE_KEY = "am_film_roll_records";
+
+const parseGvizDate = (val: any): string | null => {
+  if (typeof val !== 'string') return null;
+  const match = val.match(/^Date\((\d+),\s*(\d+),\s*(\d+)(?:,\s*(\d+),\s*(\d+)(?:,\s*(\d+))?)?\)$/);
+  if (!match) return null;
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  const day = parseInt(match[3], 10);
+  const hour = match[4] ? parseInt(match[4], 10) : 0;
+  const min = match[5] ? parseInt(match[5], 10) : 0;
+  const sec = match[6] ? parseInt(match[6], 10) : 0;
+  const d = new Date(year, month, day, hour, min, sec);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+};
+
+const normalizeDateTime = (val: any): string => {
+  if (!val) return new Date().toISOString();
+  const gvizIso = parseGvizDate(val);
+  if (gvizIso) return gvizIso;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    const ddmmyyyy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (ddmmyyyy) {
+      let y = parseInt(ddmmyyyy[3], 10);
+      if (y > 2400) y -= 543;
+      const m = parseInt(ddmmyyyy[2], 10) - 1;
+      const d = parseInt(ddmmyyyy[1], 10);
+      const hh = ddmmyyyy[4] ? parseInt(ddmmyyyy[4], 10) : 0;
+      const mm = ddmmyyyy[5] ? parseInt(ddmmyyyy[5], 10) : 0;
+      const ss = ddmmyyyy[6] ? parseInt(ddmmyyyy[6], 10) : 0;
+      const dt = new Date(y, m, d, hh, mm, ss);
+      if (!isNaN(dt.getTime())) return dt.toISOString();
+    }
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+  return new Date().toISOString();
+};
+
+const normalizeReportDate = (val: any, fallbackIso?: string): string => {
+  const gvizIso = parseGvizDate(val);
+  if (gvizIso) {
+    const d = new Date(gvizIso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+    const ddmmyyyy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (ddmmyyyy) {
+      let y = parseInt(ddmmyyyy[3], 10);
+      if (y > 2400) y -= 543;
+      return `${y}-${String(parseInt(ddmmyyyy[2], 10)).padStart(2, '0')}-${String(parseInt(ddmmyyyy[1], 10)).padStart(2, '0')}`;
+    }
+  }
+  if (fallbackIso) {
+    const d = new Date(fallbackIso);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+  }
+  return new Date().toISOString().slice(0, 10);
+};
+
+const parseNumeric = (val: any, fallback: number): number => {
+  if (val === undefined || val === null || val === '') return fallback;
+  if (typeof val === 'number') return isNaN(val) ? fallback : val;
+  const cleaned = String(val).replace(/,/g, '').trim();
+  if (!cleaned) return fallback;
+  const n = Number(cleaned);
+  return isNaN(n) ? fallback : n;
+};
+
+const pickField = (obj: any, keys: string[]): any => {
+  if (!obj) return undefined;
+  for (const k of keys) {
+    if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') return obj[k];
+  }
+  const lowerMap = new Map<string, any>();
+  Object.keys(obj).forEach(k => lowerMap.set(k.trim().toLowerCase(), obj[k]));
+  for (const k of keys) {
+    const v = lowerMap.get(k.trim().toLowerCase());
+    if (v !== undefined && v !== null && v !== '') return v;
+  }
+  return undefined;
+};
+
+const makeDeterministicId = (prefix: string, idx: number, ...parts: any[]): string => {
+  const raw = parts.map(p => String(p ?? '').trim()).join('|');
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  }
+  return `${prefix}_${idx}_${Math.abs(hash).toString(36)}`;
+};
+
+const isLegacyRandomSheetId = (id: string): boolean => /^[a-z0-9]{6,8}$/.test(id);
+
 export const DatabaseService = {
   getLocalRecords(): InspectionRecord[] {
     try {
@@ -33,21 +133,67 @@ export const DatabaseService = {
     }
   },
 
-  async fetchGoogleSheetViaGViz(sheetId: string): Promise<any[]> {
+  getLocalSealTempRecords(): InspectionRecord[] {
     try {
-      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&_t=${Date.now()}`;
+      const data = localStorage.getItem(SEAL_CACHE_KEY);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  setLocalSealTempRecords(records: InspectionRecord[]) {
+    try {
+      localStorage.setItem(SEAL_CACHE_KEY, JSON.stringify(records));
+    } catch (e) {
+      console.warn("Seal temp cache save error:", e);
+    }
+  },
+
+  getLocalFilmRollRecords(): any[] {
+    try {
+      const data = localStorage.getItem(FILM_CACHE_KEY);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  setLocalFilmRollRecords(records: any[]) {
+    try {
+      localStorage.setItem(FILM_CACHE_KEY, JSON.stringify(records));
+    } catch (e) {
+      console.warn("Film roll cache save error:", e);
+    }
+  },
+
+  async fetchGoogleSheetViaGViz(sheetId: string, sheetName?: string): Promise<any[]> {
+    try {
+      const sheetParam = sheetName ? `&sheet=${encodeURIComponent(sheetName)}` : '';
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json${sheetParam}&_t=${Date.now()}`;
       const res = await fetch(url);
+      if (!res.ok) return [];
       const text = await res.text();
       const match = text.match(/google\.visualization\.Query\.setResponse\((.*)\);/s);
       if (match && match[1]) {
         const json = JSON.parse(match[1]);
-        const cols = json.table.cols.map((c: any) => c ? (c.label || c.id || '') : '');
-        const rows = json.table.rows.map((row: any) => {
+        if (json.status === 'error') return [];
+        const cols = (json.table?.cols || []).map((c: any) => c ? (c.label || c.id || '') : '');
+        const rows = (json.table?.rows || []).map((row: any) => {
           const obj: any = {};
           if (row && row.c) {
             row.c.forEach((cell: any, i: number) => {
               const colName = cols[i] || `col_${i}`;
-              obj[colName] = cell ? (cell.v !== undefined ? cell.v : cell.f) : null;
+              if (!cell) {
+                obj[colName] = null;
+              } else {
+                const rawVal = cell.v !== undefined && cell.v !== null ? cell.v : cell.f;
+                const parsedDate = parseGvizDate(rawVal);
+                obj[colName] = parsedDate || rawVal;
+                if (cell.f && parsedDate) {
+                  obj[`${colName}__formatted`] = cell.f;
+                }
+              }
             });
           }
           return obj;
@@ -56,6 +202,27 @@ export const DatabaseService = {
       }
     } catch (e) {
       console.warn("GViz fetch error:", e);
+    }
+    return [];
+  },
+
+  async fetchViaAppsScript(gasUrl: string, sheetId: string, sheetName: string): Promise<any[]> {
+    try {
+      const requestUrl = `${gasUrl}?action=getAllRecords&sheetId=${encodeURIComponent(sheetId)}&sheetName=${encodeURIComponent(sheetName)}&_t=${Date.now()}`;
+      const res = await fetch(requestUrl, {
+        method: "GET",
+        mode: "cors",
+        redirect: "follow",
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) return [];
+      const parsed = await res.json();
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && Array.isArray(parsed.data)) return parsed.data;
+      if (parsed && Array.isArray(parsed.records)) return parsed.records;
+      if (parsed && Array.isArray(parsed.rows)) return parsed.rows;
+    } catch (e) {
+      console.warn(`Apps Script fetch error (${sheetName}):`, e);
     }
     return [];
   },
@@ -72,11 +239,11 @@ export const DatabaseService = {
         firestoreRecords = snapshot.docs.map(doc => {
           const d = doc.data() as any;
           return {
-            id: d.id || doc.id,
+            id: String(d.id || doc.id),
             recordType: 'oee' as const,
             machine: d.machine || 'เครื่องบรรจุ 1Kg No.1',
             datetime: d.datetime || new Date().toISOString(),
-            reportDate: d.reportDate || new Date().toISOString().slice(0, 10),
+            reportDate: d.reportDate || normalizeReportDate(d.datetime),
             shift: d.shift || 'A',
             shiftType: d.shiftType || '8h',
             operator: d.operator || '-',
@@ -123,72 +290,119 @@ export const DatabaseService = {
     }
 
     try {
-      const gvizRows = await this.fetchGoogleSheetViaGViz(SHEET_ID);
-      if (Array.isArray(gvizRows) && gvizRows.length > 0) {
-        sheetRecords = gvizRows
-          .filter((r: any) => r && (r.datetime || r['ข้อมูลวันที่'] || r['รายงานวันที่']))
-          .map((r: any) => ({
-            id: r.id || (Math.random().toString(36).slice(2, 9)),
-            recordType: 'oee' as const,
-            machine: r.machine ?? r['เครื่องจักร'] ?? 'เครื่องบรรจุ 1Kg No.1',
-            datetime: r.datetime ?? r['ข้อมูลวันที่'] ?? r['รายงานวันที่'] ?? new Date().toISOString(),
-            reportDate: r.reportDate ?? r['ข้อมูลวันที่'] ?? r['รายงานวันที่'] ?? new Date().toISOString().slice(0, 10),
-            shift: r.shift ?? r['shift'] ?? r['กะ'] ?? 'A',
-            shiftType: r.shiftType ?? r['shift duration type'] ?? '8h',
-            operator: r.operator ?? r['ชื่อผู้บันทึก'] ?? r['Operator'] ?? '-',
-            speed: Number(r.speed ?? r['Speed Actual'] ?? 0),
-            speedStd: Number(r.speedStd ?? r['Speed Std'] ?? 34.67),
-            speedSet: Number(r.speedSet ?? r['Speed Set'] ?? 45.00),
-            tempFront: null,
-            tempFrontMin: null,
-            tempFrontMax: null,
-            tfStatus: 'pass',
-            tempBack: null,
-            tempBackMin: null,
-            tempBackMax: null,
-            tbStatus: 'pass',
-            tempMid: null,
-            tempMidMin: null,
-            tempMidMax: null,
-            tmStatus: 'pass',
-            timeFrontBack: null,
-            timeFrontBackMin: null,
-            timeFrontBackMax: null,
-            timeFbStatus: 'pass',
-            timeMid: null,
-            timeMidMin: null,
-            timeMidMax: null,
-            timeMStatus: 'pass',
-            lot: 'pass',
-            teflon: 'pass',
-            packSealTop: 'pass',
-            packSealMid: 'pass',
-            packSealBot: 'pass',
-            hole: 'pass',
-            targetKg: Number(r.targetKg ?? r['Target'] ?? 15000),
-            actualKg: Number(r.actualKg ?? r['Actual'] ?? 12500),
-            goodKg: Number(r.goodKg ?? r['Good'] ?? 12500),
-            rejectKg: Number(r.rejectKg ?? r['Reject'] ?? 0),
-            breakdownMin: Number(r.breakdownMin ?? r['BD'] ?? 0),
-            notes: r.notes ?? ''
-          }));
+      let rawSheetRows = await this.fetchGoogleSheetViaGViz(SHEET_ID, SHEET_NAME);
+      if (rawSheetRows.length === 0) {
+        rawSheetRows = await this.fetchViaAppsScript(GAS_API_URL, SHEET_ID, SHEET_NAME);
+      }
+
+      if (Array.isArray(rawSheetRows) && rawSheetRows.length > 0) {
+        sheetRecords = rawSheetRows
+          .filter((r: any) => {
+            if (!r) return false;
+            return Boolean(
+              pickField(r, ['datetime', 'Timestamp', 'ข้อมูลวันที่', 'รายงานวันที่', 'reportDate', 'วันที่', 'machine', 'เครื่องจักร'])
+            );
+          })
+          .map((r: any, idx: number) => {
+            const rawDt = pickField(r, ['datetime', 'Timestamp', 'วันที่บันทึก', 'ข้อมูลวันที่', 'รายงานวันที่', 'reportDate', 'วันที่']);
+            const rawRepDate = pickField(r, ['reportDate', 'ข้อมูลวันที่', 'รายงานวันที่', 'วันที่', 'datetime', 'Timestamp']);
+            const datetime = normalizeDateTime(rawDt);
+            const reportDate = normalizeReportDate(rawRepDate, datetime);
+            const machine = String(pickField(r, ['machine', 'เครื่องจักร', 'Machine']) ?? 'เครื่องบรรจุ 1Kg No.1');
+            const shift = String(pickField(r, ['shift', 'กะ', 'Shift']) ?? 'A');
+            const shiftTypeRaw = String(pickField(r, ['shiftType', 'shift duration type', 'Duration shift', 'ประเภทกะ']) ?? '8h');
+            const shiftType: '8h' | '12h' = shiftTypeRaw.includes('12') ? '12h' : '8h';
+            const operator = String(pickField(r, ['operator', 'ชื่อผู้บันทึก', 'Operator', 'ผู้บันทึก']) ?? '-');
+            const targetKg = parseNumeric(pickField(r, ['targetKg', 'target', 'Target', 'เป้าหมาย']), 15000);
+            const actualKg = parseNumeric(pickField(r, ['actualKg', 'actual', 'Actual', 'ผลผลิต']), 12500);
+            const goodKg = parseNumeric(pickField(r, ['goodKg', 'good', 'Good', 'ของดี']), 12500);
+            const rejectKg = parseNumeric(pickField(r, ['rejectKg', 'reject', 'Reject', 'ของเสีย']), 0);
+            const breakdownMin = parseNumeric(pickField(r, ['breakdownMin', 'bd', 'BD', 'เวลาหยุดเครื่อง']), 0);
+            const speed = parseNumeric(pickField(r, ['speedActual', 'speed', 'Speed Actual', 'Speed Act.']), 0);
+            const speedStd = parseNumeric(pickField(r, ['speedStd', 'Speed Std', 'Speed Std.']), 34.67);
+            const speedSet = parseNumeric(pickField(r, ['speedSet', 'Speed Set']), 45.00);
+            const notes = String(pickField(r, ['notes', 'หมายเหตุ', 'Notes']) ?? '');
+
+            const rowId = pickField(r, ['id', 'ID']) || makeDeterministicId('gs_oee', idx, reportDate, machine, shift, operator, actualKg, goodKg, targetKg);
+
+            return {
+              id: String(rowId),
+              recordType: 'oee' as const,
+              machine,
+              datetime,
+              reportDate,
+              shift,
+              shiftType,
+              operator,
+              speed,
+              speedStd,
+              speedSet,
+              tempFront: null,
+              tempFrontMin: null,
+              tempFrontMax: null,
+              tfStatus: 'pass' as const,
+              tempBack: null,
+              tempBackMin: null,
+              tempBackMax: null,
+              tbStatus: 'pass' as const,
+              tempMid: null,
+              tempMidMin: null,
+              tempMidMax: null,
+              tmStatus: 'pass' as const,
+              timeFrontBack: null,
+              timeFrontBackMin: null,
+              timeFrontBackMax: null,
+              timeFbStatus: 'pass' as const,
+              timeMid: null,
+              timeMidMin: null,
+              timeMidMax: null,
+              timeMStatus: 'pass' as const,
+              lot: 'pass' as const,
+              teflon: 'pass' as const,
+              packSealTop: 'pass' as const,
+              packSealMid: 'pass' as const,
+              packSealBot: 'pass' as const,
+              hole: 'pass' as const,
+              targetKg,
+              actualKg,
+              goodKg,
+              rejectKg,
+              breakdownMin,
+              notes
+            };
+          });
       }
     } catch (err) {
-      console.warn("Google Sheet GViz fetch warning:", err);
+      console.warn("Google Sheet OEE fetch warning:", err);
     }
 
+    const cleanedLocal = (forceRefresh || sheetRecords.length > 0 || firestoreRecords.length > 0)
+      ? localData.filter(r => r && r.id && !isLegacyRandomSheetId(String(r.id)))
+      : localData;
+
     const map = new Map<string, InspectionRecord>();
-    [...localData, ...sheetRecords, ...firestoreRecords].forEach(r => {
-      if (r && r.id) {
+    const fsSignatures = new Set(
+      firestoreRecords.map(r => `${r.reportDate}|${r.machine}|${r.shift}|${r.operator}|${r.actualKg}|${r.goodKg}`)
+    );
+
+    [...cleanedLocal, ...firestoreRecords].forEach(r => {
+      if (r && r.id) map.set(String(r.id), r);
+    });
+
+    sheetRecords.forEach(r => {
+      const sig = `${r.reportDate}|${r.machine}|${r.shift}|${r.operator}|${r.actualKg}|${r.goodKg}`;
+      if (!map.has(r.id) && !fsSignatures.has(sig)) {
         map.set(r.id, r);
       }
     });
 
-    const combined = Array.from(map.values()).sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
+    const combined = Array.from(map.values()).sort(
+      (a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
+    );
 
     if (combined.length > 0) {
       this.setLocalRecords(combined);
-      return { data: combined, synced: true };
+      return { data: combined, synced: sheetRecords.length > 0 || firestoreRecords.length > 0 };
     }
 
     return { data: localData, synced: false };
@@ -278,18 +492,21 @@ export const DatabaseService = {
     const sealSheetName = "TPM_Logs";
     const sealGasUrl = "https://script.google.com/macros/s/AKfycby0tMGCk5-0gXw1hwmnAwYN_FDLjSDsU5bd3s2kXtboL7jIak0HGgTPF6uZOg6yC5D2wA/exec";
 
+    let firestoreRecords: InspectionRecord[] = [];
+    let sheetRecords: InspectionRecord[] = [];
+
     try {
       const q = query(collection(db, "seal_temp_records"));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
-        return snapshot.docs.map(doc => {
+        firestoreRecords = snapshot.docs.map(doc => {
           const d = doc.data() as any;
           return {
-            id: d.id || doc.id,
+            id: String(d.id || doc.id),
             recordType: 'sealTemp' as const,
             machine: d.machine || 'เครื่องบรรจุ 1Kg No.1',
             datetime: d.datetime || new Date().toISOString(),
-            reportDate: d.reportDate || new Date().toISOString().slice(0, 10),
+            reportDate: d.reportDate || normalizeReportDate(d.datetime),
             shift: d.shift || 'A',
             shiftType: d.shiftType || '8h',
             operator: d.operator || '-',
@@ -327,83 +544,124 @@ export const DatabaseService = {
             breakdownMin: 0,
             notes: d.notes || ''
           };
-        }).sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
+        });
       }
     } catch (fsErr) {
       console.warn("Firestore fetch seal temp error:", fsErr);
     }
 
     try {
-      const requestUrl = `${sealGasUrl}?action=getAllRecords&sheetId=${encodeURIComponent(sealSheetId)}&sheetName=${encodeURIComponent(sealSheetName)}&_t=${Date.now()}`;
-      const res = await fetch(requestUrl, {
-        method: "GET",
-        mode: "cors",
-        redirect: "follow",
-        headers: { "Accept": "application/json" }
-      });
-
-      if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-      const parsed = await res.json();
-
-      if (Array.isArray(parsed)) {
-        return parsed
-          .filter((r: any) => r && (r.datetime || r['ข้อมูลวันที่']))
-          .map((r: any) => ({
-            id: r.id || (Math.random().toString(36).slice(2, 9)),
-            recordType: 'sealTemp' as const,
-            machine: r.machine ?? r['เครื่องจักร'] ?? 'เครื่องบรรจุ 1Kg No.1',
-            datetime: r.datetime ?? r['ข้อมูลวันที่'] ?? new Date().toISOString(),
-            reportDate: r.reportDate ?? r['ข้อมูลวันที่'] ?? new Date().toISOString().slice(0, 10),
-            shift: r.shift ?? 'A',
-            shiftType: r.shiftType ?? r['shift duration type'] ?? '8h',
-            operator: r.operator ?? r['ชื่อผู้บันทึก'] ?? '-',
-            speed: Number(r.speed ?? 0),
-            tempFront: Number(r.tempFront ?? r['อุณหภูมิหน้า'] ?? 0),
-            tempFrontMin: 175,
-            tempFrontMax: 210,
-            tfStatus: 'pass',
-            tempBack: Number(r.tempBack ?? r['อุณหภูมิหลัง'] ?? 0),
-            tempBackMin: 175,
-            tempBackMax: 210,
-            tbStatus: 'pass',
-            tempMid: Number(r.tempMid ?? r['อุณหภูมิกลาง'] ?? 0),
-            tempMidMin: 175,
-            tempMidMax: 210,
-            tmStatus: 'pass',
-            timeFrontBack: null,
-            timeFrontBackMin: null,
-            timeFrontBackMax: null,
-            timeFbStatus: 'pass',
-            timeMid: null,
-            timeMidMin: null,
-            timeMidMax: null,
-            timeMStatus: 'pass',
-            lot: r.lot ?? 'pass',
-            teflon: r.teflon ?? 'pass',
-            packSealTop: r.packSealTop ?? 'pass',
-            packSealMid: r.packSealMid ?? 'pass',
-            packSealBot: r.packSealBot ?? 'pass',
-            hole: r.hole ?? 'pass',
-            targetKg: null,
-            actualKg: null,
-            goodKg: null,
-            rejectKg: null,
-            breakdownMin: 0,
-            notes: r.notes ?? ''
-          }))
-          .sort((a: any, b: any) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
+      let rawSheetRows = await this.fetchViaAppsScript(sealGasUrl, sealSheetId, sealSheetName);
+      if (rawSheetRows.length === 0) {
+        rawSheetRows = await this.fetchGoogleSheetViaGViz(sealSheetId, sealSheetName);
       }
-      return [];
+
+      if (Array.isArray(rawSheetRows) && rawSheetRows.length > 0) {
+        sheetRecords = rawSheetRows
+          .filter((r: any) => {
+            if (!r) return false;
+            return Boolean(
+              pickField(r, ['datetime', 'Timestamp', 'ข้อมูลวันที่', 'reportDate', 'วันที่', 'machine', 'เครื่องจักร'])
+            );
+          })
+          .map((r: any, idx: number) => {
+            const rawDt = pickField(r, ['datetime', 'Timestamp', 'วันที่บันทึก', 'ข้อมูลวันที่', 'reportDate', 'วันที่']);
+            const rawRepDate = pickField(r, ['reportDate', 'ข้อมูลวันที่', 'วันที่', 'datetime', 'Timestamp']);
+            const datetime = normalizeDateTime(rawDt);
+            const reportDate = normalizeReportDate(rawRepDate, datetime);
+            const machine = String(pickField(r, ['machine', 'เครื่องจักร', 'Machine']) ?? 'เครื่องบรรจุ 1Kg No.1');
+            const shift = String(pickField(r, ['shift', 'กะ', 'Shift']) ?? 'A');
+            const shiftTypeRaw = String(pickField(r, ['shiftType', 'shift duration type', 'Duration shift', 'ประเภทกะ']) ?? '8h');
+            const shiftType: '8h' | '12h' = shiftTypeRaw.includes('12') ? '12h' : '8h';
+            const operator = String(pickField(r, ['operator', 'ชื่อผู้บันทึก', 'Operator', 'ผู้บันทึก']) ?? '-');
+            const tempFront = parseNumeric(pickField(r, ['tempFront', 'อุณหภูมิหน้า', 'Temp Front', 'ซีลหน้า']), 0);
+            const tempBack = parseNumeric(pickField(r, ['tempBack', 'อุณหภูมิหลัง', 'Temp Back', 'ซีลหลัง']), 0);
+            const tempMid = parseNumeric(pickField(r, ['tempMid', 'อุณหภูมิกลาง', 'Temp Mid', 'ซีลกลาง']), 0);
+            const rowId = pickField(r, ['id', 'ID']) || makeDeterministicId('gs_seal', idx, reportDate, machine, shift, operator, tempFront, tempBack, tempMid);
+
+            return {
+              id: String(rowId),
+              recordType: 'sealTemp' as const,
+              machine,
+              datetime,
+              reportDate,
+              shift,
+              shiftType,
+              operator,
+              speed: parseNumeric(pickField(r, ['speed', 'Speed']), 0),
+              tempFront,
+              tempFrontMin: 175,
+              tempFrontMax: 210,
+              tfStatus: 'pass' as const,
+              tempBack,
+              tempBackMin: 175,
+              tempBackMax: 210,
+              tbStatus: 'pass' as const,
+              tempMid,
+              tempMidMin: 175,
+              tempMidMax: 210,
+              tmStatus: 'pass' as const,
+              timeFrontBack: null,
+              timeFrontBackMin: null,
+              timeFrontBackMax: null,
+              timeFbStatus: 'pass' as const,
+              timeMid: null,
+              timeMidMin: null,
+              timeMidMax: null,
+              timeMStatus: 'pass' as const,
+              lot: pickField(r, ['lot', 'Lot']) ?? 'pass',
+              teflon: pickField(r, ['teflon', 'Teflon']) ?? 'pass',
+              packSealTop: pickField(r, ['packSealTop', 'Pack Seal Top']) ?? 'pass',
+              packSealMid: pickField(r, ['packSealMid', 'Pack Seal Mid']) ?? 'pass',
+              packSealBot: pickField(r, ['packSealBot', 'Pack Seal Bot']) ?? 'pass',
+              hole: pickField(r, ['hole', 'Hole']) ?? 'pass',
+              targetKg: null,
+              actualKg: null,
+              goodKg: null,
+              rejectKg: null,
+              breakdownMin: 0,
+              notes: String(pickField(r, ['notes', 'หมายเหตุ', 'Notes']) ?? '')
+            };
+          });
+      }
     } catch (err) {
-      console.warn("Failed to fetch Seal Temp records:", err);
-      return [];
+      console.warn("Failed to fetch Seal Temp records from Sheet:", err);
     }
+
+    const cached = this.getLocalSealTempRecords().filter(r => r && r.id && !isLegacyRandomSheetId(String(r.id)));
+    const map = new Map<string, InspectionRecord>();
+    const fsSignatures = new Set(
+      firestoreRecords.map(r => `${r.reportDate}|${r.machine}|${r.shift}|${r.operator}|${r.tempFront}|${r.tempBack}|${r.tempMid}`)
+    );
+
+    [...cached, ...firestoreRecords].forEach(r => {
+      if (r && r.id) map.set(String(r.id), r);
+    });
+
+    sheetRecords.forEach(r => {
+      const sig = `${r.reportDate}|${r.machine}|${r.shift}|${r.operator}|${r.tempFront}|${r.tempBack}|${r.tempMid}`;
+      if (!map.has(r.id) && !fsSignatures.has(sig)) {
+        map.set(r.id, r);
+      }
+    });
+
+    const combined = Array.from(map.values()).sort(
+      (a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
+    );
+    if (combined.length > 0) {
+      this.setLocalSealTempRecords(combined);
+    }
+    return combined;
   },
 
   async submitSealTempRecord(record: InspectionRecord): Promise<any> {
+    const cached = this.getLocalSealTempRecords();
+    cached.unshift(record);
+    this.setLocalSealTempRecords(cached);
+
     try {
       await addDoc(collection(db, "seal_temp_records"), {
-        id: record.id,
+        id: String(record.id),
         machine: record.machine,
         datetime: record.datetime,
         reportDate: record.reportDate,
@@ -472,14 +730,17 @@ export const DatabaseService = {
     const filmSheetName = "FilmRoll_logs";
     const gasUrl = "https://script.google.com/macros/s/AKfycbxhbORz5XB6pjqDaQWLt0cV7kuxC_YArKfh5a5veeRdXWSCvBRbhknlJkuY6LNiqUcO-w/exec";
 
+    let firestoreRecords: any[] = [];
+    let sheetRecords: any[] = [];
+
     try {
       const q = query(collection(db, "film_roll_records"));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
-        return snapshot.docs.map(doc => {
+        firestoreRecords = snapshot.docs.map(doc => {
           const d = doc.data() as any;
           return {
-            id: d.id || doc.id,
+            id: String(d.id || doc.id),
             machine: d.machine || 'เครื่องบรรจุ 1Kg No.1',
             operator: d.operator || '-',
             shift: d.shift || 'A',
@@ -490,61 +751,103 @@ export const DatabaseService = {
             tagPhoto: d.tagPhoto || null,
             datetime: d.datetime || new Date().toISOString()
           };
-        }).sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
+        });
       }
     } catch (fsErr) {
       console.warn("Firestore fetch film roll error:", fsErr);
     }
 
     try {
-      const requestUrl = `${gasUrl}?action=getAllRecords&sheetId=${encodeURIComponent(filmSheetId)}&sheetName=${encodeURIComponent(filmSheetName)}&_t=${Date.now()}`;
-      const res = await fetch(requestUrl, {
-        method: "GET",
-        mode: "cors",
-        redirect: "follow",
-        headers: { "Accept": "application/json" }
-      });
-
-      if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-      const parsed = await res.json();
-
-      if (Array.isArray(parsed)) {
-        return parsed
-          .filter((r: any) => r && (r.datetime || r['date'] || r['ข้อมูลวันที่']))
-          .map((r: any) => ({
-            id: r.id || (Math.random().toString(36).slice(2, 9)),
-            machine: r.machine ?? r['เครื่องจักร'] ?? 'เครื่องบรรจุ 1Kg No.1',
-            operator: r.operator ?? r['Operator'] ?? '-',
-            shift: r.shift ?? r['กะ'] ?? 'A',
-            shiftType: r.shiftType ?? r['Duration shift'] ?? '8h',
-            supplier: r.supplier ?? r['Supplier'] ?? 'TG',
-            filmDate: r.filmDate ?? r['date'] ?? new Date().toLocaleDateString(),
-            changeTime: r.changeTime ?? r['เวลาเปลี่ยนม้วนฟิล์ม'] ?? '00:00',
-            tagPhoto: r.tagPhoto ?? r['รูปป้าย Tag'] ?? null,
-            datetime: r.datetime ?? new Date().toISOString()
-          }))
-          .sort((a: any, b: any) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
+      let rawSheetRows = await this.fetchViaAppsScript(gasUrl, filmSheetId, filmSheetName);
+      if (rawSheetRows.length === 0) {
+        rawSheetRows = await this.fetchGoogleSheetViaGViz(filmSheetId, filmSheetName);
       }
-      return [];
+
+      if (Array.isArray(rawSheetRows) && rawSheetRows.length > 0) {
+        sheetRecords = rawSheetRows
+          .filter((r: any) => {
+            if (!r) return false;
+            return Boolean(
+              pickField(r, ['datetime', 'Timestamp', 'date', 'filmDate', 'ข้อมูลวันที่', 'วันที่', 'machine', 'เครื่องจักร'])
+            );
+          })
+          .map((r: any, idx: number) => {
+            const rawDt = pickField(r, ['datetime', 'Timestamp', 'date', 'filmDate', 'ข้อมูลวันที่', 'วันที่']);
+            const datetime = normalizeDateTime(rawDt);
+            const rawFilmDate = pickField(r, ['filmDate', 'date', 'ข้อมูลวันที่', 'วันที่']);
+            const filmDate = rawFilmDate ? normalizeReportDate(rawFilmDate, datetime) : normalizeReportDate(datetime);
+            const machine = String(pickField(r, ['machine', 'เครื่องจักร', 'Machine']) ?? 'เครื่องบรรจุ 1Kg No.1');
+            const operator = String(pickField(r, ['operator', 'Operator', 'ชื่อผู้บันทึก', 'ผู้บันทึก']) ?? '-');
+            const shift = String(pickField(r, ['shift', 'กะ', 'Shift']) ?? 'A');
+            const shiftTypeRaw = String(pickField(r, ['shiftType', 'Duration shift', 'shift duration type', 'ประเภทกะ']) ?? '8h');
+            const shiftType = shiftTypeRaw.includes('12') ? '12h' : '8h';
+            const supplier = String(pickField(r, ['supplier', 'Supplier']) ?? 'TG');
+            const changeTime = String(pickField(r, ['changeTime', 'เวลาเปลี่ยนม้วนฟิล์ม', 'Change Time']) ?? '00:00');
+            const tagPhoto = pickField(r, ['tagPhoto', 'รูปป้าย Tag', 'Tag Photo']) ?? null;
+            const rowId = pickField(r, ['id', 'ID']) || makeDeterministicId('gs_film', idx, filmDate, machine, shift, operator, supplier, changeTime);
+
+            return {
+              id: String(rowId),
+              machine,
+              operator,
+              shift,
+              shiftType,
+              supplier,
+              filmDate,
+              changeTime,
+              tagPhoto,
+              datetime
+            };
+          });
+      }
     } catch (err) {
-      console.warn("Failed to fetch Film Roll records:", err);
-      return [];
+      console.warn("Failed to fetch Film Roll records from Sheet:", err);
     }
+
+    const cached = this.getLocalFilmRollRecords().filter(r => r && r.id && !isLegacyRandomSheetId(String(r.id)));
+    const map = new Map<string, any>();
+    const fsSignatures = new Set(
+      firestoreRecords.map(r => `${normalizeReportDate(r.filmDate, r.datetime)}|${r.machine}|${r.shift}|${r.operator}|${r.supplier}|${r.changeTime}`)
+    );
+
+    [...cached, ...firestoreRecords].forEach(r => {
+      if (r && r.id) map.set(String(r.id), r);
+    });
+
+    sheetRecords.forEach(r => {
+      const sig = `${normalizeReportDate(r.filmDate, r.datetime)}|${r.machine}|${r.shift}|${r.operator}|${r.supplier}|${r.changeTime}`;
+      if (!map.has(r.id) && !fsSignatures.has(sig)) {
+        map.set(r.id, r);
+      }
+    });
+
+    const combined = Array.from(map.values()).sort(
+      (a: any, b: any) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
+    );
+    if (combined.length > 0) {
+      this.setLocalFilmRollRecords(combined);
+    }
+    return combined;
   },
 
   async submitFilmRollRecord(record: any): Promise<any> {
+    const normalizedRecord = { ...record, id: String(record.id) };
+    const cached = this.getLocalFilmRollRecords();
+    cached.unshift(normalizedRecord);
+    this.setLocalFilmRollRecords(cached);
+
     try {
       await addDoc(collection(db, "film_roll_records"), {
-        id: record.id,
-        machine: record.machine,
-        operator: record.operator,
-        shift: record.shift,
-        shiftType: record.shiftType,
-        supplier: record.supplier,
-        filmDate: record.filmDate,
-        changeTime: record.changeTime,
-        tagPhoto: record.tagPhoto || "",
-        datetime: record.datetime,
+        id: String(normalizedRecord.id),
+        machine: normalizedRecord.machine,
+        operator: normalizedRecord.operator,
+        shift: normalizedRecord.shift,
+        shiftType: normalizedRecord.shiftType,
+        supplier: normalizedRecord.supplier,
+        filmDate: normalizedRecord.filmDate,
+        changeTime: normalizedRecord.changeTime,
+        tagPhoto: normalizedRecord.tagPhoto || "",
+        datetime: normalizedRecord.datetime,
         createdAt: new Date().toISOString()
       });
       console.log("🔥 Saved Film Roll record to Firestore successfully");
@@ -560,15 +863,15 @@ export const DatabaseService = {
       action: "saveRecord",
       sheetId: filmSheetId,
       sheetName: filmSheetName,
-      datetime: record.datetime || new Date().toISOString(),
-      filmDate: record.filmDate || new Date().toLocaleDateString(),
-      machine: record.machine || "",
-      operator: record.operator || "",
-      shift: record.shift || "A",
-      shiftType: record.shiftType || "8h",
-      supplier: record.supplier || "TG",
-      changeTime: record.changeTime || "",
-      tagPhoto: record.tagPhoto || ""
+      datetime: normalizedRecord.datetime || new Date().toISOString(),
+      filmDate: normalizedRecord.filmDate || new Date().toLocaleDateString(),
+      machine: normalizedRecord.machine || "",
+      operator: normalizedRecord.operator || "",
+      shift: normalizedRecord.shift || "A",
+      shiftType: normalizedRecord.shiftType || "8h",
+      supplier: normalizedRecord.supplier || "TG",
+      changeTime: normalizedRecord.changeTime || "",
+      tagPhoto: normalizedRecord.tagPhoto || ""
     };
 
     try {
@@ -583,5 +886,24 @@ export const DatabaseService = {
     }
 
     return { success: true };
+  },
+
+  async syncAllFromSheets(): Promise<{
+    oee: InspectionRecord[];
+    sealTemp: InspectionRecord[];
+    filmRoll: any[];
+    synced: boolean;
+  }> {
+    const [oeeRes, sealTemp, filmRoll] = await Promise.all([
+      this.fetchRecords(true),
+      this.fetchSealTempRecords(),
+      this.fetchFilmRollRecords()
+    ]);
+    return {
+      oee: oeeRes.data,
+      sealTemp,
+      filmRoll,
+      synced: oeeRes.synced || sealTemp.length > 0 || filmRoll.length > 0
+    };
   }
 };
