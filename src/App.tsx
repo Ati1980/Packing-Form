@@ -68,6 +68,30 @@ const INSPECTORS = [
 ];
 
 const pad = (n: number) => String(n).padStart(2, '0');
+const stripCommas = (val: string) => val.replace(/,/g, '');
+const parseFormattedNumber = (val: string): number => {
+  const clean = stripCommas(val).trim();
+  if (!clean) return NaN;
+  return parseFloat(clean);
+};
+const formatNumberInput = (raw: string): string => {
+  const clean = stripCommas(raw).replace(/[^\d.]/g, '');
+  if (!clean) return '';
+  const dotIdx = clean.indexOf('.');
+  let intPart = dotIdx >= 0 ? clean.slice(0, dotIdx) : clean;
+  const decPart = dotIdx >= 0 ? '.' + clean.slice(dotIdx + 1).replace(/\./g, '') : '';
+  if (intPart.length > 1) {
+    intPart = intPart.replace(/^0+/, '') || '0';
+  }
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${formattedInt}${decPart}`;
+};
+const formatNumValue = (num: number, maxDecimals = 2): string => {
+  if (!isFinite(num)) return '';
+  const factor = Math.pow(10, maxDecimals);
+  const rounded = Math.round(num * factor) / factor;
+  return rounded.toLocaleString('en-US', { maximumFractionDigits: maxDecimals });
+};
 const getDefaultShiftTypeByDate = (date?: Date | string): '8h' | '12h' => {
   let d: Date;
   if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -389,6 +413,7 @@ export default function App() {
   const [formSubTab, setFormSubTab] = useState<'form' | 'history'>('form');
   const [oeeSubTab, setOeeSubTab] = useState<'form' | 'history'>('form');
   const [filmSubTab, setFilmSubTab] = useState<'form' | 'history'>('form');
+  const [dashSubTab, setDashSubTab] = useState<'machine' | 'overall'>('machine');
   const [selectedMachine, setSelectedMachine] = useState<number>(1);
   const [records, setRecords] = useState<InspectionRecord[]>([]);
   const [sealTempRecords, setSealTempRecords] = useState<InspectionRecord[]>([]);
@@ -530,7 +555,8 @@ export default function App() {
   const [targetKg, setTargetKg] = useState<string>('');
   const [actualKg, setActualKg] = useState<string>('');
   const [goodKg, setGoodKg] = useState<string>('');
-  const [rejectKg, setRejectKg] = useState<string>('');
+  const [rejectKg, setRejectKg] = useState<string>('0');
+  const outputAnchorRef = useRef<'actual' | 'good'>('actual');
   const [showSpecsModal, setShowSpecsModal] = useState<boolean>(false);
   const [customSpeedSpecs, setCustomSpeedSpecs] = useState<Record<number, { std: number; set: number }>>(MACHINE_SPEED_SPECS);
   const [showLimitEditor, setShowLimitEditor] = useState<boolean>(false);
@@ -543,11 +569,68 @@ export default function App() {
   const [speedSet, setSpeedSet] = useState<string>('45.00');
   const [userModifiedTarget, setUserModifiedTarget] = useState<boolean>(false);
 
+  const handleActualKgChange = (raw: string) => {
+    const formatted = formatNumberInput(raw);
+    outputAnchorRef.current = 'actual';
+    setActualKg(formatted);
+    if (!formatted) {
+      setGoodKg('');
+      return;
+    }
+    const actVal = parseFormattedNumber(formatted) || 0;
+    const rejVal = parseFormattedNumber(rejectKg);
+    const safeRej = isNaN(rejVal) ? 0 : rejVal;
+    if (rejectKg.trim() === '') setRejectKg('0');
+    setGoodKg(formatNumValue(Math.max(0, actVal - safeRej), 2));
+  };
+
+  const handleGoodKgChange = (raw: string) => {
+    const formatted = formatNumberInput(raw);
+    setGoodKg(formatted);
+    if (!formatted) {
+      if (outputAnchorRef.current === 'good') {
+        setActualKg('');
+      } else {
+        const actVal = parseFormattedNumber(actualKg);
+        if (!isNaN(actVal)) {
+          setRejectKg(formatNumValue(actVal, 2));
+        }
+      }
+      return;
+    }
+    const gVal = parseFormattedNumber(formatted) || 0;
+    const existingAct = parseFormattedNumber(actualKg);
+    if (outputAnchorRef.current === 'actual' && actualKg.trim() !== '' && !isNaN(existingAct) && gVal <= existingAct) {
+      setRejectKg(formatNumValue(Math.max(0, existingAct - gVal), 2));
+    } else {
+      outputAnchorRef.current = 'good';
+      const rejVal = parseFormattedNumber(rejectKg);
+      const safeRej = isNaN(rejVal) ? 0 : rejVal;
+      if (rejectKg.trim() === '') setRejectKg('0');
+      setActualKg(formatNumValue(gVal + safeRej, 2));
+    }
+  };
+
+  const handleRejectKgChange = (raw: string) => {
+    const formatted = formatNumberInput(raw);
+    setRejectKg(formatted);
+    const rejVal = parseFormattedNumber(formatted);
+    const safeRej = isNaN(rejVal) ? 0 : rejVal;
+
+    if (outputAnchorRef.current === 'actual' && actualKg.trim() !== '') {
+      const actVal = parseFormattedNumber(actualKg) || 0;
+      setGoodKg(formatNumValue(Math.max(0, actVal - safeRej), 2));
+    } else if (goodKg.trim() !== '') {
+      const gVal = parseFormattedNumber(goodKg) || 0;
+      setActualKg(formatNumValue(gVal + safeRej, 2));
+    }
+  };
+
   useEffect(() => {
     if (!userModifiedTarget) {
-      const rt = parseFloat(runTime) || 0;
-      const ss = parseFloat(speedSet) || 0;
-      setTargetKg(String(Math.round(rt * ss)));
+      const rt = parseFormattedNumber(runTime) || 0;
+      const ss = parseFormattedNumber(speedSet) || 0;
+      setTargetKg(formatNumValue(Math.round(rt * ss), 2));
     }
   }, [runTime, speedSet, userModifiedTarget]);
 
@@ -557,8 +640,10 @@ export default function App() {
   }, [shiftType]);
 
   useEffect(() => {
-    const rt = Math.max(0, (parseFloat(planTime) || 0) - (parseFloat(breakdownMin) || 0));
-    setRunTime(String(rt));
+    const pt = parseFormattedNumber(planTime) || 0;
+    const bd = parseFormattedNumber(breakdownMin) || 0;
+    const rt = Math.max(0, pt - bd);
+    setRunTime(formatNumValue(rt, 2));
   }, [planTime, breakdownMin]);
 
   useEffect(() => {
@@ -737,7 +822,25 @@ export default function App() {
 
   const handleOeeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!operator.trim() || !reportDate || !planTime.trim() || !runTime.trim() || breakdownMin.trim() === '' || !speedStd.trim() || !speedSet.trim() || !speed.trim() || targetKg.trim() === '' || actualKg.trim() === '' || goodKg.trim() === '' || rejectKg.trim() === '') {
+    const targetVal = parseFormattedNumber(targetKg);
+    const actualVal = parseFormattedNumber(actualKg);
+    const goodVal = parseFormattedNumber(goodKg);
+    const rejectVal = rejectKg.trim() === '' ? 0 : parseFormattedNumber(rejectKg);
+
+    if (
+      !operator.trim() ||
+      !reportDate ||
+      !planTime.trim() ||
+      !runTime.trim() ||
+      breakdownMin.trim() === '' ||
+      !speedStd.trim() ||
+      !speedSet.trim() ||
+      !speed.trim() ||
+      isNaN(targetVal) ||
+      isNaN(actualVal) ||
+      isNaN(goodVal) ||
+      isNaN(rejectVal)
+    ) {
       showToast('กรุณากรอกข้อมูล OEE ให้ครบทุกหัวข้อ (ยกเว้นหมายเหตุ)');
       return;
     }
@@ -752,9 +855,9 @@ export default function App() {
       shiftType,
       operator,
       reportDate,
-      speed: parseFloat(speed) || 0,
-      speedStd: !isNaN(parseFloat(speedStd)) ? parseFloat(speedStd) : 0,
-      speedSet: !isNaN(parseFloat(speedSet)) ? parseFloat(speedSet) : 0,
+      speed: parseFormattedNumber(speed) || 0,
+      speedStd: !isNaN(parseFormattedNumber(speedStd)) ? parseFormattedNumber(speedStd) : 0,
+      speedSet: !isNaN(parseFormattedNumber(speedSet)) ? parseFormattedNumber(speedSet) : 0,
       tempFront: null,
       tempFrontMin: null,
       tempFrontMax: null,
@@ -781,11 +884,11 @@ export default function App() {
       packSealMid: 'pass',
       packSealBot: 'pass',
       hole: 'pass',
-      targetKg: parseFloat(targetKg) || null,
-      actualKg: parseFloat(actualKg) || null,
-      goodKg: parseFloat(goodKg) || null,
-      rejectKg: parseFloat(rejectKg) || null,
-      breakdownMin: parseFloat(breakdownMin) || 0,
+      targetKg: !isNaN(targetVal) ? targetVal : null,
+      actualKg: !isNaN(actualVal) ? actualVal : null,
+      goodKg: !isNaN(goodVal) ? goodVal : null,
+      rejectKg: !isNaN(rejectVal) ? rejectVal : 0,
+      breakdownMin: parseFormattedNumber(breakdownMin) || 0,
       notes
     };
 
@@ -799,7 +902,9 @@ export default function App() {
     setTargetKg('');
     setActualKg('');
     setGoodKg('');
-    setRejectKg('');
+    setRejectKg('0');
+    outputAnchorRef.current = 'actual';
+    setUserModifiedTarget(false);
     setBreakdownMin('0');
     setNotes('');
 
@@ -863,11 +968,11 @@ export default function App() {
       packSealMid: qc.packSealMid,
       packSealBot: qc.packSealBot,
       hole: qc.hole,
-      targetKg: parseFloat(targetKg) || null,
-      actualKg: parseFloat(actualKg) || null,
-      goodKg: parseFloat(goodKg) || null,
-      rejectKg: parseFloat(rejectKg) || null,
-      breakdownMin: parseFloat(breakdownMin) || 0,
+      targetKg: parseFormattedNumber(targetKg) || null,
+      actualKg: parseFormattedNumber(actualKg) || null,
+      goodKg: parseFormattedNumber(goodKg) || null,
+      rejectKg: parseFormattedNumber(rejectKg) || null,
+      breakdownMin: parseFormattedNumber(breakdownMin) || 0,
       notes
     };
 
@@ -889,7 +994,7 @@ export default function App() {
     setTargetKg('');
     setActualKg('');
     setGoodKg('');
-    setRejectKg('');
+    setRejectKg('0');
     setBreakdownMin('0');
     setNotes('');
 
@@ -1083,7 +1188,7 @@ export default function App() {
 
   // Dashboard chart effect
   useEffect(() => {
-    if (currentView !== 'dashboard') return;
+    if (currentView !== 'dashboard' || dashSubTab !== 'machine') return;
     const m = MACHINES.find(item => item.id === selectedMachine);
     if (!m) return;
 
@@ -1159,7 +1264,7 @@ export default function App() {
       if (speedChartInstance.current) speedChartInstance.current.destroy();
       if (tempChartInstance.current) tempChartInstance.current.destroy();
     };
-  }, [currentView, selectedMachine, records]);
+  }, [currentView, dashSubTab, selectedMachine, records]);
 
   const todayRecords = records.filter(r => isToday(r.datetime));
   const passToday = todayRecords.filter(recordOk).length;
@@ -2426,20 +2531,30 @@ export default function App() {
                   <label className="text-xs font-black text-slate-700 block flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-purple-600" /> ประเภทกะการทำงาน (Shift Duration Type)
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 max-w-sm">
                     <button
                       type="button"
                       onClick={() => setShiftType('8h')}
-                      className={`py-2.5 px-3 rounded-xl text-xs font-black font-display transition-all shadow-sm ${shiftType === '8h' ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white ring-2 ring-offset-1 ring-blue-400 scale-[1.02]' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-300'}`}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-2xl text-xs font-semibold border transition-all duration-200 active:scale-[0.98] font-display ${
+                        shiftType === '8h'
+                          ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-transparent shadow-md shadow-blue-500/25'
+                          : 'bg-slate-50/90 text-slate-600 border-slate-200 hover:bg-white'
+                      }`}
                     >
-                      🛡️ กะปกติ 8 ชม. (จ-พฤ)
+                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                      <span>กะ 8 ชม. (จ-พฤ)</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setShiftType('12h')}
-                      className={`py-2.5 px-3 rounded-xl text-xs font-black font-display transition-all shadow-sm ${shiftType === '12h' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white ring-2 ring-offset-1 ring-purple-400 scale-[1.02]' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-300'}`}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-2xl text-xs font-semibold border transition-all duration-200 active:scale-[0.98] font-display ${
+                        shiftType === '12h'
+                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white border-transparent shadow-md shadow-purple-500/25'
+                          : 'bg-slate-50/90 text-slate-600 border-slate-200 hover:bg-white'
+                      }`}
                     >
-                      ⭐ กะยาว 12 ชม. (ศ-อา)
+                      <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                      <span>กะ 12 ชม. (ศ-อา)</span>
                     </button>
                   </div>
                 </div>
@@ -2479,188 +2594,317 @@ export default function App() {
                 </div>
 
               {/* 3 Distinct Cards Layout for Availability, Performance, Quality */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {(() => {
+                const ptNum = parseFormattedNumber(planTime) || 0;
+                const rtNum = parseFormattedNumber(runTime) || 0;
+                const meLive = ptNum > 0 ? Math.min(100, Math.max(0, (rtNum / ptNum) * 100)) : 0;
+
+                const setNum = parseFormattedNumber(speedSet) || 0;
+                const actSpeedNum = parseFormattedNumber(speed) || 0;
+                const perfLive = setNum > 0 && speed.trim() !== '' ? Math.max(0, (actSpeedNum / setNum) * 100) : 0;
+
+                const actKgNum = parseFormattedNumber(actualKg) || 0;
+                const goodKgNum = parseFormattedNumber(goodKg) || 0;
+                const qualLive = actKgNum > 0 ? Math.min(100, Math.max(0, (goodKgNum / actKgNum) * 100)) : 0;
+
+                return (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
                 {/* 1. Availability Card */}
-                <div className={`backdrop-blur-xl border rounded-3xl p-5 shadow-xl space-y-4 ${cardBg} border-t-4 border-t-blue-600`}>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-black text-blue-900 font-display flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-blue-600" /> Availability
-                    </h3>
-                    <span className="text-[10px] font-mono bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full font-bold">
-                      {shiftType === '12h' ? 'กะ 12 ชม.' : 'กะ 8 ชม.'}
-                    </span>
-                  </div>
+                <div className={`backdrop-blur-xl border rounded-3xl shadow-xl overflow-hidden flex flex-col ${cardBg}`}>
+                  <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-500" />
+                  <div className="p-5 flex-1 flex flex-col justify-between gap-4">
+                    <div className="space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-black text-blue-950 font-display flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center">
+                            <Clock className="w-4 h-4 text-blue-600" />
+                          </span>
+                          <span>Availability</span>
+                        </h3>
+                        <span className="text-[11px] font-mono bg-blue-50 text-blue-700 border border-blue-200/80 px-2.5 py-0.5 rounded-full font-bold">
+                          {shiftType === '12h' ? 'กะ 12 ชม.' : 'กะ 8 ชม.'}
+                        </span>
+                      </div>
 
-                  <div className="space-y-3">
-                    <div className="bg-slate-50 border border-slate-300 rounded-2xl p-3 shadow-xs">
-                      <label className="text-[11px] font-black text-slate-600 block mb-1 flex items-center gap-1.5">
-                        <span>📅 Plan Time <span className="text-rose-600">*</span></span>
-                      </label>
-                      <input
-                        type="number"
-                        step="1"
-                        value={planTime}
-                        onChange={e => setPlanTime(e.target.value)}
-                        placeholder="480"
-                        required
-                        className="w-full text-sm font-mono font-black text-slate-900 bg-white border border-slate-300 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      <div className="space-y-2.5">
+                        <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-3 shadow-2xs">
+                          <label className="text-[11px] font-bold text-slate-600 block mb-1.5 flex items-center gap-1.5">
+                            <span>📅 Plan Time <span className="text-rose-500">*</span></span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={planTime}
+                              onChange={e => setPlanTime(formatNumberInput(e.target.value))}
+                              placeholder="480"
+                              required
+                              className="w-full text-sm font-mono tabular-nums font-black text-slate-900 bg-white border border-slate-200 rounded-xl py-2.5 pl-3 pr-11 focus:outline-none focus:ring-2 focus:ring-blue-500/35 focus:border-blue-500 transition-all"
+                            />
+                            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] font-semibold text-slate-400">min</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-3 shadow-2xs">
+                          <label className="text-[11px] font-bold text-slate-600 block mb-1.5 flex items-center gap-1.5">
+                            <span>⏳ Run Time <span className="text-rose-500">*</span></span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={runTime}
+                              onChange={e => setRunTime(formatNumberInput(e.target.value))}
+                              placeholder="480"
+                              required
+                              className="w-full text-sm font-mono tabular-nums font-black text-emerald-700 bg-white border border-slate-200 rounded-xl py-2.5 pl-3 pr-11 focus:outline-none focus:ring-2 focus:ring-emerald-500/35 focus:border-emerald-500 transition-all"
+                            />
+                            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] font-semibold text-slate-400">min</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-amber-50/75 border border-amber-200/90 rounded-2xl p-3 shadow-2xs">
+                          <label className="text-[11px] font-bold text-amber-900 block mb-1.5 flex items-center gap-1.5">
+                            <span>🔧 BD (Min) <span className="text-rose-500">*</span></span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={breakdownMin}
+                              onChange={e => setBreakdownMin(formatNumberInput(e.target.value))}
+                              onBlur={() => {
+                                if (breakdownMin.trim() === '') setBreakdownMin('0');
+                              }}
+                              placeholder="0"
+                              required
+                              className="w-full text-sm font-mono tabular-nums font-black text-amber-800 bg-white border border-amber-200 rounded-xl py-2.5 pl-3 pr-11 focus:outline-none focus:ring-2 focus:ring-amber-500/35 focus:border-amber-500 transition-all"
+                            />
+                            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] font-semibold text-amber-500">min</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="bg-slate-50 border border-slate-300 rounded-2xl p-3 shadow-xs">
-                      <label className="text-[11px] font-black text-slate-600 block mb-1 flex items-center gap-1.5">
-                        <span>⏳ Run Time <span className="text-rose-600">*</span></span>
-                      </label>
-                      <input
-                        type="number"
-                        step="1"
-                        value={runTime}
-                        onChange={e => setRunTime(e.target.value)}
-                        placeholder="480"
-                        required
-                        className="w-full text-sm font-mono font-black text-emerald-700 bg-white border border-slate-300 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
-                    </div>
-
-                    <div className="bg-amber-50/60 border border-amber-200 rounded-2xl p-3 shadow-xs">
-                      <label className="text-[11px] font-black text-amber-900 block mb-1 flex items-center gap-1.5">
-                        <span>🔧 BD (Min) <span className="text-rose-600">*</span></span>
-                      </label>
-                      <input
-                        type="number"
-                        step="1"
-                        value={breakdownMin}
-                        onChange={e => setBreakdownMin(e.target.value)}
-                        placeholder="0"
-                        required
-                        className="w-full text-sm font-mono font-black text-amber-800 bg-white border border-amber-300 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      />
+                    <div className="pt-3 border-t border-slate-200/80 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-500">ME (Availability)</span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 font-mono font-black text-blue-700">
+                        {meLive.toFixed(1)}%
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 {/* 2. Performance Card */}
-                <div className={`backdrop-blur-xl border rounded-3xl p-5 shadow-xl space-y-4 ${cardBg} border-t-4 border-t-purple-600`}>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-black text-purple-900 font-display flex items-center gap-2">
-                      <Gauge className="w-4 h-4 text-purple-600" /> Performance
-                    </h3>
-                    <span className="text-[10px] font-mono bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-full font-bold">
-                      Speed
-                    </span>
-                  </div>
+                <div className={`backdrop-blur-xl border rounded-3xl shadow-xl overflow-hidden flex flex-col ${cardBg}`}>
+                  <div className="h-1.5 w-full bg-gradient-to-r from-purple-600 via-violet-500 to-fuchsia-500" />
+                  <div className="p-5 flex-1 flex flex-col justify-between gap-4">
+                    <div className="space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-black text-purple-950 font-display flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center">
+                            <Gauge className="w-4 h-4 text-purple-600" />
+                          </span>
+                          <span>Performance</span>
+                        </h3>
+                        <span className="text-[11px] font-mono bg-purple-50 text-purple-700 border border-purple-200/80 px-2.5 py-0.5 rounded-full font-bold">
+                          Speed
+                        </span>
+                      </div>
 
-                  <div className="space-y-3">
-                    <div className="bg-slate-50 border border-slate-300 rounded-2xl p-3 shadow-xs">
-                      <label className="text-[11px] font-black text-slate-600 block mb-1 flex items-center gap-1.5">
-                        <span>⚙️ Speed Std. <span className="text-rose-600">*</span></span>
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={speedStd}
-                        onChange={e => setSpeedStd(e.target.value)}
-                        placeholder="34.67"
-                        required
-                        className="w-full text-sm font-mono font-black text-slate-900 bg-white border border-slate-300 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
+                      <div className="space-y-2.5">
+                        <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-3 shadow-2xs">
+                          <label className="text-[11px] font-bold text-slate-600 block mb-1.5 flex items-center gap-1.5">
+                            <span>⚙️ Speed Std. <span className="text-rose-500">*</span></span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={speedStd}
+                              onChange={e => setSpeedStd(e.target.value)}
+                              placeholder="34.67"
+                              required
+                              className="w-full text-sm font-mono tabular-nums font-black text-slate-900 bg-white border border-slate-200 rounded-xl py-2.5 pl-3 pr-16 focus:outline-none focus:ring-2 focus:ring-purple-500/35 focus:border-purple-500 transition-all"
+                            />
+                            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] font-semibold text-slate-400">bag/min</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-3 shadow-2xs">
+                          <label className="text-[11px] font-bold text-slate-600 block mb-1.5 flex items-center gap-1.5">
+                            <span>🚀 Speed Set <span className="text-rose-500">*</span></span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={speedSet}
+                              onChange={e => setSpeedSet(e.target.value)}
+                              placeholder="45.00"
+                              required
+                              className="w-full text-sm font-mono tabular-nums font-black text-indigo-700 bg-white border border-slate-200 rounded-xl py-2.5 pl-3 pr-16 focus:outline-none focus:ring-2 focus:ring-indigo-500/35 focus:border-indigo-500 transition-all"
+                            />
+                            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] font-semibold text-slate-400">bag/min</span>
+                          </div>
+                        </div>
+
+                        <div className="bg-blue-50/75 border border-blue-200/90 rounded-2xl p-3 shadow-2xs">
+                          <label className="text-[11px] font-bold text-blue-900 block mb-1.5 flex items-center gap-1.5">
+                            <span>⚡ Speed Act. <span className="text-rose-500">*</span></span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={speed}
+                              onChange={e => setSpeed(e.target.value)}
+                              placeholder="0.0"
+                              required
+                              className="w-full text-sm font-mono tabular-nums font-black text-blue-800 bg-white border border-blue-200 rounded-xl py-2.5 pl-3 pr-16 focus:outline-none focus:ring-2 focus:ring-blue-500/35 focus:border-blue-500 transition-all"
+                            />
+                            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] font-semibold text-blue-400">bag/min</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="bg-slate-50 border border-slate-300 rounded-2xl p-3 shadow-xs">
-                      <label className="text-[11px] font-black text-slate-600 block mb-1 flex items-center gap-1.5">
-                        <span>🚀 Speed Set <span className="text-rose-600">*</span></span>
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={speedSet}
-                        onChange={e => setSpeedSet(e.target.value)}
-                        placeholder="45.00"
-                        required
-                        className="w-full text-sm font-mono font-black text-indigo-700 bg-white border border-slate-300 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-
-                    <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-3 shadow-xs">
-                      <label className="text-[11px] font-black text-blue-900 block mb-1 flex items-center gap-1.5">
-                        <span>⚡ Speed Act. <span className="text-rose-600">*</span></span>
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={speed}
-                        onChange={e => setSpeed(e.target.value)}
-                        placeholder="0.0"
-                        required
-                        className="w-full text-sm font-mono font-black text-blue-800 bg-white border border-blue-300 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                    <div className="pt-3 border-t border-slate-200/80 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-500">Performance</span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-purple-50 border border-purple-200 font-mono font-black text-purple-700">
+                        {speed.trim() !== '' ? `${perfLive.toFixed(1)}%` : '-'}
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 {/* 3. Quality Card */}
-                <div className={`backdrop-blur-xl border rounded-3xl p-5 shadow-xl space-y-4 ${cardBg} border-t-4 border-t-emerald-600`}>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-black text-emerald-900 font-display flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600" /> Quality
-                    </h3>
-                    <span className="text-[10px] font-mono bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full font-bold">
-                      Output (kg)
-                    </span>
-                  </div>
+                <div className={`backdrop-blur-xl border rounded-3xl shadow-xl overflow-hidden flex flex-col ${cardBg}`}>
+                  <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+                  <div className="p-5 flex-1 flex flex-col justify-between gap-4">
+                    <div className="space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-black text-emerald-950 font-display flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                          </span>
+                          <span>Quality</span>
+                        </h3>
+                        <span className="text-[11px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-2.5 py-0.5 rounded-full font-bold">
+                          Output (kg)
+                        </span>
+                      </div>
 
-                  <div className="space-y-2.5">
-                    <div className="bg-slate-50 border border-slate-300 rounded-xl p-2.5 shadow-xs">
-                      <label className="text-[10px] font-black text-slate-700 block mb-1">🎯 Target (kg) <span className="text-rose-600">*</span></label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={targetKg}
-                        onChange={e => setTargetKg(e.target.value)}
-                        placeholder="0"
-                        required
-                        className="w-full text-xs font-mono font-black text-slate-900 bg-white border border-slate-300 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
+                      <div className="space-y-2.5">
+                        {/* Target (kg) */}
+                        <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-3 shadow-2xs">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                              <span>🎯 Target (kg) <span className="text-rose-500">*</span></span>
+                            </label>
+                            {userModifiedTarget && (
+                              <button
+                                type="button"
+                                onClick={() => setUserModifiedTarget(false)}
+                                className="text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 transition"
+                              >
+                                คำนวณอัตโนมัติ
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={targetKg}
+                              onChange={e => {
+                                setUserModifiedTarget(true);
+                                setTargetKg(formatNumberInput(e.target.value));
+                              }}
+                              placeholder="0"
+                              required
+                              className="w-full text-sm font-mono tabular-nums font-black text-slate-900 bg-white border border-slate-200 rounded-xl py-2.5 pl-3 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500/35 focus:border-blue-500 transition-all"
+                            />
+                            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] font-semibold text-slate-400">kg</span>
+                          </div>
+                        </div>
+
+                        {/* Actual (kg) */}
+                        <div className="bg-blue-50/55 border border-blue-200/90 rounded-2xl p-3 shadow-2xs">
+                          <div className="flex items-center justify-between mb-1.5 gap-2">
+                            <label className="text-[11px] font-bold text-blue-950 flex items-center gap-1">
+                              <span>📦 Actual (kg) <span className="text-rose-500">*</span></span>
+                            </label>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={actualKg}
+                              onChange={e => handleActualKgChange(e.target.value)}
+                              placeholder="0"
+                              required
+                              className="w-full text-sm font-mono tabular-nums font-black text-slate-900 bg-white border border-blue-200 rounded-xl py-2.5 pl-3 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500/35 focus:border-blue-500 transition-all"
+                            />
+                            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] font-semibold text-blue-400">kg</span>
+                          </div>
+                        </div>
+
+                        {/* Good (kg) & Reject (kg) */}
+                        <div className="grid grid-cols-1 gap-2.5">
+                          <div className="bg-emerald-50/85 border border-emerald-200/90 rounded-2xl p-3 shadow-2xs">
+                            <label className="text-[11px] font-bold text-emerald-900 block mb-1.5">
+                              ✨ Good (kg) <span className="text-rose-500">*</span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={goodKg}
+                                onChange={e => handleGoodKgChange(e.target.value)}
+                                placeholder="0"
+                                required
+                                className="w-full text-sm font-mono tabular-nums font-black text-emerald-700 bg-white border border-emerald-200 rounded-xl py-2.5 pl-3 pr-10 focus:outline-none focus:ring-2 focus:ring-emerald-500/35 focus:border-emerald-500 transition-all"
+                              />
+                              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] font-semibold text-emerald-500">kg</span>
+                            </div>
+                          </div>
+
+                          <div className="bg-rose-50/85 border border-rose-200/90 rounded-2xl p-3 shadow-2xs">
+                            <label className="text-[11px] font-bold text-rose-900 block mb-1.5">
+                              ⚠️ Reject (kg) <span className="text-rose-500">*</span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={rejectKg}
+                                onChange={e => handleRejectKgChange(e.target.value)}
+                                onBlur={() => {
+                                  if (rejectKg.trim() === '') setRejectKg('0');
+                                }}
+                                placeholder="0"
+                                required
+                                className="w-full text-sm font-mono tabular-nums font-black text-rose-700 bg-white border border-rose-200 rounded-xl py-2.5 pl-3 pr-10 focus:outline-none focus:ring-2 focus:ring-rose-500/35 focus:border-rose-500 transition-all"
+                              />
+                              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[11px] font-semibold text-rose-400">kg</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-slate-50 border border-slate-300 rounded-xl p-2.5 shadow-xs">
-                      <label className="text-[10px] font-black text-slate-700 block mb-1">📦 Actual (kg) <span className="text-rose-600">*</span></label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={actualKg}
-                        onChange={e => setActualKg(e.target.value)}
-                        placeholder="0"
-                        required
-                        className="w-full text-xs font-mono font-black text-slate-900 bg-white border border-slate-300 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-2.5 shadow-xs">
-                      <label className="text-[10px] font-black text-emerald-900 block mb-1">✨ Good (kg) <span className="text-rose-600">*</span></label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={goodKg}
-                        onChange={e => setGoodKg(e.target.value)}
-                        placeholder="0"
-                        required
-                        className="w-full text-xs font-mono font-black text-emerald-700 bg-white border border-emerald-300 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                      />
-                    </div>
-                    <div className="bg-rose-50 border border-rose-300 rounded-xl p-2.5 shadow-xs">
-                      <label className="text-[10px] font-black text-rose-900 block mb-1">⚠️ Reject (kg) <span className="text-rose-600">*</span></label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={rejectKg}
-                        onChange={e => setRejectKg(e.target.value)}
-                        placeholder="0"
-                        required
-                        className="w-full text-xs font-mono font-black text-rose-700 bg-white border border-rose-300 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-rose-500"
-                      />
+
+                    <div className="pt-3 border-t border-slate-200/80 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-500">Quality Rate</span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 font-mono font-black text-emerald-700">
+                        {actKgNum > 0 ? `${qualLive.toFixed(1)}%` : '-'}
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
+                );
+              })()}
 
                 <div>
                   <label className="text-xs font-black text-slate-700 block mb-1.5">📝 หมายเหตุการผลิต / ปัญหาที่พบ</label>
@@ -2976,268 +3220,291 @@ export default function App() {
               </div>
 
               {filmSubTab === 'form' && (
-              <div className={`backdrop-blur-xl border rounded-3xl p-6 shadow-2xl space-y-6 ${cardBg}`}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-black text-slate-700 block mb-1.5 flex items-center gap-1.5">
-                      <Factory className="w-4 h-4 text-blue-600" /> เลือกเครื่อง (Machine)
-                    </label>
-                    <select
-                      value={filmMachine}
-                      onChange={e => setFilmMachine(Number(e.target.value))}
-                      className={`w-full border rounded-xl py-3 px-3 text-sm font-black ${inputBg}`}
-                    >
-                      {MACHINES.map(m => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-black text-slate-700 block mb-1.5 flex items-center gap-1.5">
-                      <UserCheck className="w-4 h-4 text-emerald-600" /> ผู้บันทึก (Operator) <span className="text-rose-600">*</span>
-                    </label>
-                    <select
-                      value={filmOperator}
-                      onChange={e => setFilmOperator(e.target.value)}
-                      required
-                      className={`w-full border rounded-xl py-3 px-3 text-sm font-black ${inputBg}`}
-                    >
-                      <option value="">-- เลือกผู้บันทึก --</option>
-                      {INSPECTORS.map(ins => (
-                        <option key={ins.name} value={ins.name}>{ins.emoji} {ins.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-black text-slate-700 block mb-1.5 flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-amber-500" /> กะการทำงาน (Shift & Duration)
-                    </label>
-                    <div className="grid grid-cols-3 gap-1.5 mb-2">
-                      {['A', 'B', 'C'].map(sh => (
-                        <button
-                          key={sh}
-                          type="button"
-                          onClick={() => setFilmShift(sh)}
-                          className={`py-2 rounded-xl text-xs font-black transition-all shadow-sm ${filmShift === sh ? 'bg-blue-600 text-white ring-2 ring-blue-400 scale-105' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'}`}
-                        >
-                          กะ {sh}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setFilmShiftType('8h')}
-                        className={`py-2 rounded-xl text-[11px] font-black transition-all ${filmShiftType === '8h' ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}
-                      >
-                        กะปกติ 8 ชม.
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFilmShiftType('12h')}
-                        className={`py-2 rounded-xl text-[11px] font-black transition-all ${filmShiftType === '12h' ? 'bg-purple-600 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}
-                      >
-                        กะยาว 12 ชม.
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
+              <div className={`backdrop-blur-xl border rounded-3xl shadow-2xl overflow-hidden ${cardBg}`}>
+                <div className="h-1.5 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600" />
+                <div className="p-5 sm:p-6 space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-black text-slate-700 block mb-1.5">🏭 เลือก Supplier (ผู้ผลิตฟิล์ม)</label>
-                      <div className="grid grid-cols-2 gap-3">
-                        {['TG', 'S&S'].map(sup => (
+                      <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                        <Factory className="w-4 h-4 text-blue-600" /> เลือกเครื่อง (Machine)
+                      </label>
+                      <select
+                        value={filmMachine}
+                        onChange={e => setFilmMachine(Number(e.target.value))}
+                        className={`w-full border rounded-xl py-2.5 px-3 text-sm font-bold transition-all ${inputBg}`}
+                      >
+                        {MACHINES.map(m => (
+                          <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                        <UserCheck className="w-4 h-4 text-emerald-600" /> ผู้บันทึก (Operator) <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={filmOperator}
+                        onChange={e => setFilmOperator(e.target.value)}
+                        required
+                        className={`w-full border rounded-xl py-2.5 px-3 text-sm font-bold transition-all ${inputBg}`}
+                      >
+                        <option value="">-- เลือกผู้บันทึก --</option>
+                        {INSPECTORS.map(ins => (
+                          <option key={ins.name} value={ins.name}>{ins.emoji} {ins.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2.5">
+                      <label className="text-xs font-bold text-slate-700 block flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-amber-500" /> กะการทำงาน (Shift & Duration)
+                      </label>
+                      <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-slate-100/90 border border-slate-200/90">
+                        {[
+                          { key: 'A', activeClass: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-500/25' },
+                          { key: 'B', activeClass: 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm shadow-amber-500/25' },
+                          { key: 'C', activeClass: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm shadow-emerald-500/25' }
+                        ].map(sh => (
                           <button
-                            key={sup}
+                            key={sh.key}
                             type="button"
-                            onClick={() => setFilmSupplier(sup)}
-                            className={`py-3 rounded-2xl text-sm font-black font-display transition-all shadow-sm ${filmSupplier === sup ? 'bg-purple-600 text-white ring-2 ring-purple-400 scale-[1.02]' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+                            onClick={() => setFilmShift(sh.key)}
+                            className={`py-2 rounded-lg text-xs font-bold font-display transition-all ${filmShift === sh.key ? sh.activeClass : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'}`}
                           >
-                            📦 {sup}
+                            กะ {sh.key}
                           </button>
                         ))}
                       </div>
-                    </div>
-
-
-
-                    <div>
-                      <label className="text-xs font-black text-slate-700 block mb-1.5">⏰ เวลาเปลี่ยนม้วนฟิล์ม (Change Time) <span className="text-rose-600">*</span></label>
-                      <input
-                        type="time"
-                        value={filmChangeTime}
-                        onChange={e => setFilmChangeTime(e.target.value)}
-                        required
-                        className={`w-full border rounded-xl py-2.5 px-3 text-sm font-black font-mono ${inputBg}`}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-
-
-                {/* Tag Photo Upload Section (Camera + Gallery / Native File Picker) */}
-                <div className="border border-dashed border-purple-300 rounded-2xl p-4 bg-purple-50/50 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-black text-purple-900 flex items-center gap-1.5 font-display">
-                      <Camera className="w-4 h-4 text-purple-600" /> รูปป้าย tag ม้วนฟิล์ม (Film Roll Tag Photo) <span className="text-rose-600">*</span>
-                    </label>
-                    {filmTagPhoto && (
-                      <span className="text-[10px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
-                        ✔ แนบรูปแล้ว
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Hidden Inputs: Camera Capture & Native File/Gallery Picker */}
-                  <input
-                    ref={filmCameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleFilmPhotoSelect}
-                    className="hidden"
-                  />
-                  <input
-                    ref={filmGalleryInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFilmPhotoSelect}
-                    className="hidden"
-                  />
-
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    <div className="grid grid-cols-2 gap-2.5 flex-1">
-                      <button
-                        type="button"
-                        onClick={startCamera}
-                        className="py-2.5 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-black flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.98]"
-                      >
-                        <Camera className="w-4 h-4 shrink-0" />
-                        <span>ถ่ายรูปจากกล้อง</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => filmGalleryInputRef.current?.click()}
-                        className="py-2.5 px-3 rounded-xl bg-white hover:bg-purple-100/70 text-purple-800 border border-purple-300 text-xs font-black flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.98]"
-                      >
-                        <ImagePlus className="w-4 h-4 shrink-0 text-purple-600" />
-                        <span>เลือกรูป / แนบไฟล์</span>
-                      </button>
-                    </div>
-
-                    {filmTagPhoto && (
-                      <div className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-purple-400 shadow-md shrink-0 self-center sm:self-auto bg-white">
-                        <img src={filmTagPhoto} alt="Tag preview" className="w-full h-full object-cover" />
+                      <div className="grid grid-cols-2 gap-2 max-w-sm">
                         <button
                           type="button"
-                          onClick={() => setFilmTagPhoto(null)}
-                          title="ลบรูปภาพ"
-                          className="absolute top-0 right-0 bg-rose-600 hover:bg-rose-700 text-white text-[10px] w-5 h-5 flex items-center justify-center font-bold rounded-bl-lg"
+                          onClick={() => setFilmShiftType('8h')}
+                          className={`flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-2xl text-xs font-semibold border transition-all duration-200 active:scale-[0.98] font-display ${
+                            filmShiftType === '8h'
+                              ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-transparent shadow-md shadow-blue-500/25'
+                              : 'bg-slate-50/90 text-slate-600 border-slate-200 hover:bg-white'
+                          }`}
                         >
-                          ✕
+                          <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                          <span>กะ 8 ชม. (จ-พฤ)</span>
                         </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Live Camera Modal */}
-                {showCameraModal && (
-                  <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full shadow-2xl flex flex-col border border-slate-200">
-                      <div className="bg-purple-900 text-white p-4 flex items-center justify-between">
-                        <h3 className="text-sm font-black flex items-center gap-2">
-                          <Camera className="w-5 h-5 text-purple-300" /> ถ่ายภาพป้าย Tag ม้วนฟิล์ม
-                        </h3>
                         <button
                           type="button"
-                          onClick={stopCamera}
-                          className="text-white hover:text-rose-300 text-lg font-bold w-8 h-8 rounded-full flex items-center justify-center bg-white/10"
+                          onClick={() => setFilmShiftType('12h')}
+                          className={`flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-2xl text-xs font-semibold border transition-all duration-200 active:scale-[0.98] font-display ${
+                            filmShiftType === '12h'
+                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white border-transparent shadow-md shadow-purple-500/25'
+                              : 'bg-slate-50/90 text-slate-600 border-slate-200 hover:bg-white'
+                          }`}
                         >
-                          ✕
+                          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                          <span>กะ 12 ชม. (ศ-อา)</span>
                         </button>
                       </div>
-                      <div className="relative bg-black aspect-video flex items-center justify-center overflow-hidden">
-                        <video
-                          ref={videoRef}
-                          autoPlay
-                          playsInline
-                          muted
-                          className="w-full h-full object-cover"
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                          <Factory className="w-4 h-4 text-indigo-600" /> เลือก Supplier (ผู้ผลิตฟิล์ม)
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100/90 border border-slate-200/90">
+                          {['TG', 'S&S'].map(sup => (
+                            <button
+                              key={sup}
+                              type="button"
+                              onClick={() => setFilmSupplier(sup)}
+                              className={`py-1.5 px-3 rounded-lg text-xs font-bold font-display transition-all flex items-center justify-center gap-1.5 ${
+                                filmSupplier === sup
+                                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm shadow-blue-500/25'
+                                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                              }`}
+                            >
+                              <Box className="w-3.5 h-3.5 shrink-0" />
+                              <span>{sup}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                          <Clock className="w-4 h-4 text-rose-500" /> เวลาเปลี่ยนม้วนฟิล์ม (Change Time) <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="time"
+                          value={filmChangeTime}
+                          onChange={e => setFilmChangeTime(e.target.value)}
+                          required
+                          className={`w-full border rounded-xl py-2 px-3 text-sm font-bold font-mono transition-all ${inputBg}`}
                         />
                       </div>
-                      <div className="p-4 bg-slate-50 flex items-center justify-center gap-3">
-                        <button
-                          type="button"
-                          onClick={captureSnapshot}
-                          className="px-6 py-3 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-black text-sm shadow-xl flex items-center gap-2"
-                        >
-                          <Camera className="w-5 h-5" /> 📸 กดถ่ายภาพ
-                        </button>
-                        <button
-                          type="button"
-                          onClick={stopCamera}
-                          className="px-4 py-3 rounded-2xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-sm"
-                        >
-                          ยกเลิก
-                        </button>
-                      </div>
                     </div>
                   </div>
-                )}
 
+                  {/* Tag Photo Upload Section (Camera + Gallery / Native File Picker) */}
+                  <div className="border-2 border-dashed border-indigo-200/90 rounded-2xl p-4 bg-gradient-to-br from-blue-50/50 via-indigo-50/35 to-slate-50/60 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-2 font-display">
+                        <span className="w-7 h-7 rounded-lg bg-indigo-100/90 text-indigo-600 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4" />
+                        </span>
+                        <span>รูปป้าย tag ม้วนฟิล์ม (Film Roll Tag Photo) <span className="text-rose-500">*</span></span>
+                      </label>
+                      {filmTagPhoto && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-0.5 rounded-full shrink-0">
+                          ✔ แนบรูปแล้ว
+                        </span>
+                      )}
+                    </div>
 
+                    {/* Hidden Inputs: Camera Capture & Native File/Gallery Picker */}
+                    <input
+                      ref={filmCameraInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleFilmPhotoSelect}
+                      className="hidden"
+                    />
+                    <input
+                      ref={filmGalleryInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFilmPhotoSelect}
+                      className="hidden"
+                    />
 
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!filmOperator) {
-                        showToast('กรุณาเลือกผู้บันทึก (Operator)');
-                        return;
-                      }
-                      if (!filmChangeTime) {
-                        showToast('กรุณาระบุเวลาเปลี่ยนม้วนฟิล์ม');
-                        return;
-                      }
-                      if (!filmTagPhoto) {
-                        showToast('กรุณาถ่ายหรือแนบรูปป้าย tag ม้วนฟิล์ม');
-                        return;
-                      }
-                      const now = new Date();
-                      const formattedDate = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                      <div className="grid grid-cols-2 gap-2.5 flex-1">
+                        <button
+                          type="button"
+                          onClick={startCamera}
+                          className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:brightness-110 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-500/20 active:scale-[0.98]"
+                        >
+                          <Camera className="w-4 h-4 shrink-0" />
+                          <span>ถ่ายรูปจากกล้อง</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => filmGalleryInputRef.current?.click()}
+                          className="py-2.5 px-3 rounded-xl bg-white hover:bg-indigo-50/70 text-indigo-700 border border-indigo-200/90 text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs active:scale-[0.98]"
+                        >
+                          <ImagePlus className="w-4 h-4 shrink-0 text-indigo-600" />
+                          <span>เลือกรูป / แนบไฟล์</span>
+                        </button>
+                      </div>
 
-                      const mObj = MACHINES.find(m => m.id === filmMachine) || MACHINES[0];
-                      const newFilmRec = {
-                        id: Date.now(),
-                        machine: mObj.name,
-                        operator: filmOperator,
-                        shift: filmShift,
-                        shiftType: filmShiftType,
-                        supplier: filmSupplier,
-                        filmDate: formattedDate,
-                        changeTime: filmChangeTime,
-                        tagPhoto: filmTagPhoto,
-                        datetime: new Date().toISOString()
-                      };
-                      setFilmRecords([newFilmRec, ...filmRecords]);
-                      setFilmTagPhoto(null);
-                      showToast('บันทึกตรวจสอบม้วนฟิล์มและซิงค์สำเร็จ ✔');
+                      {filmTagPhoto && (
+                        <div className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-indigo-300 shadow-md shrink-0 self-center sm:self-auto bg-white">
+                          <img src={filmTagPhoto} alt="Tag preview" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setFilmTagPhoto(null)}
+                            title="ลบรูปภาพ"
+                            className="absolute top-0 right-0 bg-rose-600 hover:bg-rose-700 text-white text-[10px] w-5 h-5 flex items-center justify-center font-bold rounded-bl-lg"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-                      try {
-                        await DatabaseService.submitFilmRollRecord(newFilmRec);
-                      } catch (err) {
-                        console.warn("Failed to sync film roll record to Google Sheet:", err);
-                      }
-                    }}
-                    className="w-full py-3.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black text-sm shadow-xl shadow-purple-500/25 flex items-center justify-center gap-2 transition-all ring-2 ring-purple-400/50"
-                  >
-                    <Save className="w-4 h-4" /> บันทึกตรวจสอบม้วนฟิล์ม
-                  </button>
+                  {/* Live Camera Modal */}
+                  {showCameraModal && (
+                    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-4">
+                      <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full shadow-2xl flex flex-col border border-slate-200">
+                        <div className="bg-gradient-to-r from-blue-700 to-indigo-700 text-white p-4 flex items-center justify-between">
+                          <h3 className="text-sm font-black flex items-center gap-2">
+                            <Camera className="w-5 h-5 text-blue-200" /> ถ่ายภาพป้าย Tag ม้วนฟิล์ม
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={stopCamera}
+                            className="text-white hover:text-rose-200 text-lg font-bold w-8 h-8 rounded-full flex items-center justify-center bg-white/10"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <div className="relative bg-black aspect-video flex items-center justify-center overflow-hidden">
+                          <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="p-4 bg-slate-50 flex items-center justify-center gap-3">
+                          <button
+                            type="button"
+                            onClick={captureSnapshot}
+                            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:brightness-110 text-white font-bold text-sm shadow-xl flex items-center gap-2"
+                          >
+                            <Camera className="w-5 h-5" /> กดถ่ายภาพ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={stopCamera}
+                            className="px-4 py-3 rounded-2xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-sm"
+                          >
+                            ยกเลิก
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!filmOperator) {
+                          showToast('กรุณาเลือกผู้บันทึก (Operator)');
+                          return;
+                        }
+                        if (!filmChangeTime) {
+                          showToast('กรุณาระบุเวลาเปลี่ยนม้วนฟิล์ม');
+                          return;
+                        }
+                        if (!filmTagPhoto) {
+                          showToast('กรุณาถ่ายหรือแนบรูปป้าย tag ม้วนฟิล์ม');
+                          return;
+                        }
+                        const now = new Date();
+                        const formattedDate = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
+
+                        const mObj = MACHINES.find(m => m.id === filmMachine) || MACHINES[0];
+                        const newFilmRec = {
+                          id: Date.now(),
+                          machine: mObj.name,
+                          operator: filmOperator,
+                          shift: filmShift,
+                          shiftType: filmShiftType,
+                          supplier: filmSupplier,
+                          filmDate: formattedDate,
+                          changeTime: filmChangeTime,
+                          tagPhoto: filmTagPhoto,
+                          datetime: new Date().toISOString()
+                        };
+                        setFilmRecords([newFilmRec, ...filmRecords]);
+                        setFilmTagPhoto(null);
+                        showToast('บันทึกตรวจสอบม้วนฟิล์มและซิงค์สำเร็จ ✔');
+
+                        try {
+                          await DatabaseService.submitFilmRollRecord(newFilmRec);
+                        } catch (err) {
+                          console.warn("Failed to sync film roll record to Google Sheet:", err);
+                        }
+                      }}
+                      className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:brightness-110 text-white font-bold text-sm shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                    >
+                      <Save className="w-4 h-4" /> บันทึกตรวจสอบม้วนฟิล์ม
+                    </button>
+                  </div>
                 </div>
               </div>
               )}
@@ -3402,6 +3669,44 @@ export default function App() {
             exit={{ opacity: 0, y: -15 }}
             className="flex-1 p-4 md:p-6 space-y-6"
           >
+            {/* Dashboard Sub-Tab Switcher (2 Tabs) */}
+            <div
+              role="tablist"
+              aria-label="มุมมองแดชบอร์ด"
+              className={`p-1.5 rounded-2xl backdrop-blur-xl border shadow-glass grid grid-cols-2 gap-1.5 max-w-4xl mx-auto ${cardBg}`}
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={dashSubTab === 'machine'}
+                onClick={() => setDashSubTab('machine')}
+                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 font-display ${
+                  dashSubTab === 'machine'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                    : 'text-slate-600 hover:bg-slate-100/80'
+                }`}
+              >
+                <GaugeCircle className="w-4 h-4 shrink-0" />
+                <span className="truncate">สถานะเครื่องจักร & แนวโน้ม</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={dashSubTab === 'overall'}
+                onClick={() => setDashSubTab('overall')}
+                className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 font-display ${
+                  dashSubTab === 'overall'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                    : 'text-slate-600 hover:bg-slate-100/80'
+                }`}
+              >
+                <Activity className="w-4 h-4 shrink-0" />
+                <span className="truncate">รายงาน OEE</span>
+              </button>
+            </div>
+
+            {dashSubTab === 'machine' && (
+              <>
             {/* Machine Selector Dropdown for Dashboard */}
             <div className="flex items-center gap-2">
               <div className="relative w-full max-w-sm">
@@ -3495,15 +3800,20 @@ export default function App() {
               </div>
             </div>
 
-            {/* Section Divider: Per-Machine vs Overall Operator & Machine Performance */}
-            <div className="pt-6 pb-2">
+              </>
+            )}
+
+            {dashSubTab === 'overall' && (
+              <>
+            {/* Section Divider: Overall Operator & Machine Performance */}
+            <div className="pt-1 pb-1">
               <div className="relative flex items-center justify-center">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t-2 border-blue-300"></div>
                 </div>
                 <div className="relative bg-white px-4 py-1.5 rounded-full border border-blue-300 shadow-sm text-xs font-black text-blue-900 flex items-center gap-2">
                   <Activity className="w-4 h-4 text-blue-600" />
-                  <span>รายงานภาพรวมเปรียบเทียบระดับองค์กร (Operator & Machine Overall Performance)</span>
+                  <span>รายงานภาพรวมวัดประสิทธิผลโดยรวมของเครื่องบรรจุ (Operator & Machine Overall Performance)</span>
                 </div>
               </div>
             </div>
@@ -3826,7 +4136,8 @@ export default function App() {
                 </div>
               );
             })()}
-
+              </>
+            )}
 
           </motion.main>
         )}
