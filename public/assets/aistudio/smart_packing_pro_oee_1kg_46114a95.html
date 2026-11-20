@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="th" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SMART PACKING PRO | ระบบควบคุม OEE และคุณภาพเครื่องบรรจุ 1Kg</title>
+
+    <!-- Google Fonts: Prompt (Thai UI) & JetBrains Mono (Digital Clock & Numbers) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Prompt', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.08)',
+                        'glass-dark': '0 8px 32px 0 rgba(0, 0, 0, 0.35)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Soft Mesh Gradient Backgrounds for Light & Dark Mode */
+        body {
+            font-family: 'Prompt', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .bg-mesh-light {
+            background-color: #f1f5f9;
+            background-image:
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.16) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.14) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.12) 0px, transparent 50%),
+                radial-gradient(at 0% 100%, rgba(236, 72, 153, 0.10) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        .dark .bg-mesh-light {
+            background-color: #0b1120;
+            background-image:
+                radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.22) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(124, 58, 237, 0.20) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.12) 0px, transparent 50%),
+                radial-gradient(at 0% 100%, rgba(236, 72, 153, 0.12) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        /* Hide default number input spinners */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* Smooth fade & slide micro-animation */
+        @keyframes fadeSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-fade-slide {
+            animation: fadeSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body class="bg-mesh-light text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300 pb-28 sm:pb-12">
+
+    <!-- ==================== 1. TOP STICKY GLASS HEADER ==================== -->
+    <header class="sticky top-0 z-40 w-full backdrop-blur-xl bg-white/75 dark:bg-slate-900/75 border-b border-white/60 dark:border-slate-700/60 shadow-sm transition-colors duration-300">
+        <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+            <!-- Brand Identity -->
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="shrink-0 w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+                    <i data-lucide="factory" class="w-6 h-6"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <h1 class="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white leading-none">
+                            SMART PACKING
+                        </h1>
+                        <span class="px-1.5 py-0.5 text-[10px] sm:text-xs font-bold tracking-wider rounded-md bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-sm leading-none">
+                            PRO
+                        </span>
+                    </div>
+                    <p class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate mt-1">
+                        ระบบควบคุม OEE และคุณภาพเครื่องบรรจุ 1Kg
+                    </p>
+                </div>
+            </div>
+
+            <!-- Right Controls: Live Clock & Theme Toggle -->
+            <div class="flex items-center gap-2 shrink-0">
+                <!-- Live Digital Clock Pill -->
+                <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 shadow-inner">
+                    <i data-lucide="clock" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400"></i>
+                    <span id="headerClockDesktop" class="font-mono text-xs font-semibold text-slate-700 dark:text-slate-200 tracking-tight">
+                        --/--/---- --:--:--
+                    </span>
+                </div>
+
+                <!-- Light / Dark Theme Toggle -->
+                <button id="themeToggleBtn" type="button" aria-label="สลับโหมดสว่าง/มืด"
+                    class="w-10 h-10 rounded-xl bg-slate-100/90 dark:bg-slate-800/90 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-center text-slate-700 dark:text-amber-400 transition-all active:scale-95">
+                    <i id="themeIconSun" data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                    <i id="themeIconMoon" data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Sub-bar for Live Digital Clock -->
+        <div class="sm:hidden border-t border-slate-200/50 dark:border-slate-800/70 px-4 py-1.5 bg-white/40 dark:bg-slate-900/40 flex items-center justify-between">
+            <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                เวลาปัจจุบัน (Real-time)
+            </span>
+            <span id="headerClockMobile" class="font-mono text-xs font-semibold text-slate-700 dark:text-slate-200">
+                --/--/---- --:--:--
+            </span>
+        </div>
+    </header>
+
+    <!-- ==================== MAIN CONTAINER ==================== -->
+    <main class="max-w-3xl mx-auto px-4 pt-4 sm:pt-6 space-y-5">
+
+        <!-- ==================== 2. ACTIVE CONTEXT BANNER ==================== -->
+        <section class="rounded-3xl backdrop-blur-xl bg-white/75 dark:bg-slate-900/70 border border-white/70 dark:border-slate-700/60 shadow-glass dark:shadow-glass-dark p-4 sm:p-5 transition-all duration-300">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <!-- Title -->
+                <div class="flex items-center gap-3">
+                    <div id="bannerIconWrap" class="w-10 h-10 rounded-2xl flex items-center justify-center transition-colors duration-300"
+                         style="background-color: rgba(239, 68, 68, 0.14); color: #EF4444;">
+                        <i data-lucide="sliders-horizontal" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-slate-900 dark:text-white leading-tight">
+                            บันทึกพารามิเตอร์
+                        </h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                            ตรวจสอบและบันทึกค่ามาตรฐานเครื่องบรรจุประจำกะ
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Dynamic Machine & Shift Summary Pill -->
+                <div id="activeContextPill"
+                     class="flex items-center justify-between sm:justify-center gap-3 px-4 py-2.5 rounded-2xl text-white shadow-lg transition-all duration-300"
+                     style="background-color: #EF4444; box-shadow: 0 8px 20px -4px rgba(239, 68, 68, 0.45);">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
+                        <span id="activeMachineLabel" class="font-bold text-sm sm:text-base tracking-wide">
+                            เครื่องบรรจุ 1Kg • No.1
+                        </span>
+                    </div>
+                    <span class="h-4 w-px bg-white/35"></span>
+                    <span id="activeShiftSummary" class="text-xs font-medium bg-black/15 px-2.5 py-1 rounded-xl whitespace-nowrap">
+                        กะ A • 8 ชม.
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== 3. VIEW SWITCHER TABS ==================== -->
+        <nav class="p-1.5 rounded-2xl backdrop-blur-xl bg-white/70 dark:bg-slate-900/70 border border-white/70 dark:border-slate-700/60 shadow-sm grid grid-cols-2 gap-1.5" role="tablist">
+            <button id="tabBtnForm" type="button" role="tab" aria-selected="true"
+                class="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25">
+                <i data-lucide="clipboard-edit" class="w-4 h-4"></i>
+                <span>บันทึกข้อมูล</span>
+            </button>
+            <button id="tabBtnHistory" type="button" role="tab" aria-selected="false"
+                class="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/80">
+                <i data-lucide="history" class="w-4 h-4"></i>
+                <span>ประวัติล่าสุด</span>
+                <span id="logsCountBadge" class="px-2 py-0.5 text-xs font-mono font-bold rounded-full bg-slate-200/90 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                    2
+                </span>
+            </button>
+        </nav>
+
+        <!-- ==================== VIEW 1: RECORD FORM ==================== -->
+        <form id="parameterForm" class="space-y-5 animate-fade-slide" novalidate>
+
+            <!-- CARD 1: SHIFT & OPERATOR SELECTION -->
+            <div class="rounded-3xl backdrop-blur-xl bg-white/80 dark:bg-slate-900/75 border border-white/70 dark:border-slate-700/60 shadow-glass dark:shadow-glass-dark p-5 sm:p-6 space-y-6">
+                <!-- Section Header -->
+                <div class="flex items-center gap-2.5 pb-3 border-b border-slate-200/70 dark:border-slate-700/70">
+                    <div class="w-8 h-8 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                        <i data-lucide="user-check" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold tracking-wider uppercase text-blue-600 dark:text-blue-400">
+                            SHIFT & OPERATOR SELECTION
+                        </h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">เลือกเครื่องจักร กะการทำงาน และผู้ตรวจสอบ</p>
+                    </div>
+                </div>
+
+                <!-- 1.1 Machine Grid Selector -->
+                <div class="space-y-2.5">
+                    <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        <i data-lucide="cpu" class="w-4 h-4 text-slate-400"></i>
+                        <span>เลือกเครื่องจักร (Machine)</span>
+                        <span class="text-rose-500">*</span>
+                    </label>
+                    <div id="machineGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2.5">
+                        <!-- Rendered dynamically via JS -->
+                    </div>
+                </div>
+
+                <!-- 1.2 Shift Segmented Control & Duration Toggle -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <!-- Shift A / B / C -->
+                    <div class="space-y-2.5">
+                        <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            <i data-lucide="clock-3" class="w-4 h-4 text-slate-400"></i>
+                            <span>กะการทำงาน (Shift)</span>
+                        </label>
+                        <div class="p-1.5 rounded-2xl bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200/70 dark:border-slate-700/70 grid grid-cols-3 gap-1.5">
+                            <button type="button" data-shift="กะ A" class="shift-btn py-2.5 rounded-xl text-sm font-semibold transition-all duration-200">
+                                กะ A
+                            </button>
+                            <button type="button" data-shift="กะ B" class="shift-btn py-2.5 rounded-xl text-sm font-semibold transition-all duration-200">
+                                กะ B
+                            </button>
+                            <button type="button" data-shift="กะ C" class="shift-btn py-2.5 rounded-xl text-sm font-semibold transition-all duration-200">
+                                กะ C
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Shift Duration 8h / 12h -->
+                    <div class="space-y-2.5">
+                        <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            <i data-lucide="calendar-clock" class="w-4 h-4 text-slate-400"></i>
+                            <span>ระยะเวลากะ (Duration)</span>
+                        </label>
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <button type="button" data-duration="8 ชม." class="duration-btn flex items-center justify-center gap-1.5 py-3 px-3 rounded-2xl text-xs sm:text-sm font-semibold border transition-all duration-200">
+                                <i data-lucide="shield-check" class="w-4 h-4 shrink-0"></i>
+                                <span>กะ 8 ชม. (จ-พฤ)</span>
+                            </button>
+                            <button type="button" data-duration="12 ชม." class="duration-btn flex items-center justify-center gap-1.5 py-3 px-3 rounded-2xl text-xs sm:text-sm font-semibold border transition-all duration-200">
+                                <i data-lucide="star" class="w-4 h-4 shrink-0"></i>
+                                <span>กะ 12 ชม. (ศ-อา)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 1.3 Operator Select Dropdown -->
+                <div class="space-y-2.5">
+                    <label for="operatorSelect" class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        <i data-lucide="shield" class="w-4 h-4 text-slate-400"></i>
+                        <span>ผู้ตรวจสอบ (Operator)</span>
+                        <span class="text-rose-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <div class="pointer-events-none absolute inset-y-0 left-0 pl-4 flex items-center text-blue-600 dark:text-blue-400">
+                            <i data-lucide="user-round-check" class="w-5 h-5"></i>
+                        </div>
+                        <select id="operatorSelect" name="operator" required
+                            class="w-full appearance-none pl-12 pr-10 py-3.5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-sm sm:text-base font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all cursor-pointer">
+                            <option value="">-- กรุณาเลือกรายชื่อผู้ตรวจสอบ --</option>
+                            <option value="นายอนิวัฒน์ ทองลาด">นายอนิวัฒน์ ทองลาด</option>
+                            <option value="นายประจักร์ น้อยมูล">นายประจักร์ น้อยมูล</option>
+                            <option value="นายภานุพงค์ นามวิเศษ">นายภานุพงค์ นามวิเศษ</option>
+                            <option value="นายวัชรากร ขวัญเฉลิม">นายวัชรากร ขวัญเฉลิม</option>
+                            <option value="นายกิตติภัส สีสังชุม">นายกิตติภัส สีสังชุม</option>
+                            <option value="นายมงคล ติวสร้อย">นายมงคล ติวสร้อย</option>
+                            <option value="นายอำนาจ ทิพย์โพธิ์ศรี">นายอำนาจ ทิพย์โพธิ์ศรี</option>
+                            <option value="นายอดิศักดิ์ มณีจันทร์">นายอดิศักดิ์ มณีจันทร์</option>
+                            <option value="นายปริวัฒน์ ทองมูล">นายปริวัฒน์ ทองมูล</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400">
+                            <i data-lucide="chevron-down" class="w-5 h-5"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 2: MACHINE PARAMETERS -->
+            <div class="rounded-3xl backdrop-blur-xl bg-white/80 dark:bg-slate-900/75 border border-white/70 dark:border-slate-700/60 shadow-glass dark:shadow-glass-dark p-5 sm:p-6 space-y-6">
+                <!-- Section Header -->
+                <div class="flex items-center gap-2.5 pb-3 border-b border-slate-200/70 dark:border-slate-700/70">
+                    <div class="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                        <i data-lucide="gauge" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold tracking-wider uppercase text-indigo-600 dark:text-indigo-400">
+                            MACHINE PARAMETERS
+                        </h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">พารามิเตอร์การทำงานและคุณภาพการบรรจุ</p>
+                    </div>
+                </div>
+
+                <!-- 2.1 Speed (bag/min) with +/- Stepper & Live Badge -->
+                <div class="space-y-2.5">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <label for="speedInput" class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i>
+                            <span>ความเร็วบรรจุ Speed (bag/min)</span>
+                            <span class="text-rose-500">*</span>
+                        </label>
+                        <span id="speedStatusBadge" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                            ปกติ (45-60)
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="speedMinusBtn" aria-label="ลดความเร็ว"
+                            class="w-12 h-12 shrink-0 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 active:scale-95 transition-all">
+                            <i data-lucide="minus" class="w-5 h-5"></i>
+                        </button>
+                        <div class="relative flex-1">
+                            <input type="number" id="speedInput" name="speed" value="52" min="0" max="120" step="1" required
+                                placeholder="เช่น 52"
+                                class="w-full h-12 px-4 pr-20 rounded-2xl bg-slate-50/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 font-mono text-lg font-bold text-center text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all">
+                            <span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-medium text-slate-400">
+                                bag/min
+                            </span>
+                        </div>
+                        <button type="button" id="speedPlusBtn" aria-label="เพิ่มความเร็ว"
+                            class="w-12 h-12 shrink-0 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 active:scale-95 transition-all">
+                            <i data-lucide="plus" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-slate-400 dark:text-slate-500">เกณฑ์มาตรฐานเครื่องบรรจุ 1Kg: 45 - 60 bag/min</p>
+                </div>
+
+                <!-- 2.2 Net Weight (g) with Target Guide & Live Pass/Check Badge -->
+                <div class="space-y-2.5">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <label for="weightInput" class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            <i data-lucide="scale" class="w-4 h-4 text-blue-500"></i>
+                            <span>น้ำหนักบรรจุ Net Weight (g)</span>
+                        </label>
+                        <span id="weightStatusBadge" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                            ผ่านเกณฑ์ (1000-1005g)
+                        </span>
+                    </div>
+                    <div class="relative">
+                        <input type="number" id="weightInput" name="weight" value="1002" min="900" max="1150" step="0.5"
+                            placeholder="1000 - 1005"
+                            class="w-full h-12 pl-4 pr-14 rounded-2xl bg-slate-50/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 font-mono text-base font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all">
+                        <span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-semibold text-slate-400">
+                            กรัม (g)
+                        </span>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                        <span>เป้าหมาย (Target): 1,000 - 1,005 g</span>
+                        <span class="font-mono">±5g Tolerance</span>
+                    </div>
+                </div>
+
+                <!-- 2.3 Seal Temperatures (2-Column Grid) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Vertical Seal Temp -->
+                    <div class="space-y-2">
+                        <label for="vTempInput" class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            <i data-lucide="thermometer" class="w-4 h-4 text-rose-500"></i>
+                            <span>อุณหภูมิซีลแนวตั้ง (°C)</span>
+                        </label>
+                        <div class="relative">
+                            <input type="number" id="vTempInput" name="vTemp" value="145" min="50" max="300" step="1"
+                                placeholder="เช่น 145"
+                                class="w-full h-12 pl-4 pr-12 rounded-2xl bg-slate-50/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 font-mono text-base font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all">
+                            <span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-semibold text-slate-400">
+                                °C
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Horizontal Seal Temp -->
+                    <div class="space-y-2">
+                        <label for="hTempInput" class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            <i data-lucide="flame" class="w-4 h-4 text-orange-500"></i>
+                            <span>อุณหภูมิซีลแนวนอน (°C)</span>
+                        </label>
+                        <div class="relative">
+                            <input type="number" id="hTempInput" name="hTemp" value="150" min="50" max="300" step="1"
+                                placeholder="เช่น 150"
+                                class="w-full h-12 pl-4 pr-12 rounded-2xl bg-slate-50/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 font-mono text-base font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all">
+                            <span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-semibold text-slate-400">
+                                °C
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2.4 Air Pressure & Seal Quality Toggle -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Air Pressure -->
+                    <div class="space-y-2">
+                        <label for="airPressureInput" class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            <i data-lucide="wind" class="w-4 h-4 text-sky-500"></i>
+                            <span>แรงดันลม Air Pressure (Bar)</span>
+                        </label>
+                        <div class="relative">
+                            <input type="number" id="airPressureInput" name="airPressure" value="6.2" min="0" max="12" step="0.1"
+                                placeholder="เช่น 6.0"
+                                class="w-full h-12 pl-4 pr-12 rounded-2xl bg-slate-50/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 font-mono text-base font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all">
+                            <span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-semibold text-slate-400">
+                                Bar
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Seal Quality Toggle -->
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            <i data-lucide="package-check" class="w-4 h-4 text-emerald-500"></i>
+                            <span>สภาพซีล/ถุง (Seal Quality)</span>
+                        </label>
+                        <div class="grid grid-cols-2 gap-2 h-12">
+                            <button type="button" data-seal="ปกติ" class="seal-btn flex items-center justify-center gap-1.5 rounded-2xl text-sm font-semibold border transition-all duration-200">
+                                <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                <span>ปกติ</span>
+                            </button>
+                            <button type="button" data-seal="พบปัญหา" class="seal-btn flex items-center justify-center gap-1.5 rounded-2xl text-sm font-semibold border transition-all duration-200">
+                                <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                                <span>พบปัญหา</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2.5 Notes Textarea -->
+                <div class="space-y-2">
+                    <label for="notesInput" class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        <i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i>
+                        <span>หมายเหตุเพิ่มเติม (Notes)</span>
+                    </label>
+                    <textarea id="notesInput" name="notes" rows="3"
+                        placeholder="ระบุรายละเอียดเพิ่มเติม เช่น เปลี่ยนม้วนฟิล์ม ปรับตั้งค่าอุณหภูมิ หรือปัญหาที่พบ..."
+                        class="w-full p-4 rounded-2xl bg-slate-50/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all resize-none"></textarea>
+                </div>
+            </div>
+
+            <!-- PROMINENT / STICKY ACTION BUTTONS -->
+            <div class="fixed bottom-0 left-0 right-0 sm:static z-30 p-3 sm:p-0 backdrop-blur-xl sm:backdrop-blur-none bg-white/85 dark:bg-slate-900/85 sm:bg-transparent sm:dark:bg-transparent border-t border-slate-200/70 dark:border-slate-800/70 sm:border-0">
+                <div class="max-w-3xl mx-auto flex items-center gap-3">
+                    <button type="button" id="resetBtn"
+                        class="flex-1 sm:flex-none sm:w-40 py-3.5 px-5 rounded-2xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                        <span>ล้างข้อมูล</span>
+                    </button>
+                    <button type="submit" id="saveBtn"
+                        class="flex-[2] sm:flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:brightness-110 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/30 active:scale-[0.98] transition-all">
+                        <i data-lucide="save" class="w-5 h-5"></i>
+                        <span>บันทึกพารามิเตอร์</span>
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <!-- ==================== VIEW 2: RECENT LOGS ==================== -->
+        <section id="historyView" class="hidden space-y-4 animate-fade-slide">
+            <!-- History Header -->
+            <div class="flex items-center justify-between px-1">
+                <div>
+                    <h3 class="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <i data-lucide="list-checks" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                        ประวัติการบันทึกล่าสุด
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">ข้อมูลบันทึกไว้ในเครื่อง (Local Storage)</p>
+                </div>
+                <button type="button" id="clearAllLogsBtn"
+                    class="text-xs font-semibold text-rose-500 hover:text-rose-600 dark:text-rose-400 px-3 py-1.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors flex items-center gap-1">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    ล้างทั้งหมด
+                </button>
+            </div>
+
+            <!-- Logs List Container -->
+            <div id="logsContainer" class="space-y-3.5">
+                <!-- Rendered dynamically via JS -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ==================== CUSTOM CONFIRMATION MODAL (NO NATIVE confirm()) ==================== -->
+    <div id="confirmModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div class="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 shadow-2xl space-y-4 animate-fade-slide">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                    <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h4 id="confirmModalTitle" class="font-bold text-slate-900 dark:text-white">ยืนยันการลบข้อมูล</h4>
+                    <p id="confirmModalDesc" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">คุณต้องการลบรายการนี้ใช่หรือไม่?</p>
+                </div>
+            </div>
+            <div class="flex items-center justify-end gap-2 pt-2">
+                <button type="button" id="confirmCancelBtn"
+                    class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    ยกเลิก
+                </button>
+                <button type="button" id="confirmOkBtn"
+                    class="px-4 py-2.5 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-500/25 transition-all">
+                    ยืนยันลบ
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
+    <div id="toastContainer" class="fixed top-20 right-4 left-4 sm:left-auto sm:w-80 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- ==================== APPLICATION JAVASCRIPT ==================== -->
+    <script>
+        (function () {
+            'use strict';
+
+            // ---------------------------------------------------------
+            // 1. CONFIGURATION & MACHINE COLOR PALETTE
+            // ---------------------------------------------------------
+            const MACHINES = [
+                { id: 1, label: 'No.1', color: '#EF4444', name: 'Rose' },
+                { id: 2, label: 'No.2', color: '#F97316', name: 'Orange' },
+                { id: 3, label: 'No.3', color: '#EAB308', name: 'Amber' },
+                { id: 4, label: 'No.4', color: '#10B981', name: 'Emerald' },
+                { id: 5, label: 'No.5', color: '#3B82F6', name: 'Blue' },
+                { id: 6, label: 'No.6', color: '#8B5CF6', name: 'Violet' },
+                { id: 7, label: 'No.7', color: '#EC4899', name: 'Pink' }
+            ];
+
+            const STORAGE_KEY = 'smart_packing_pro_logs_v2';
+            const THEME_KEY = 'smart_packing_pro_theme';
+
+            // Default pre-populated sample records for immediate visual appeal
+            const SAMPLE_LOGS = [
+                {
+                    id: 'log-sample-1',
+                    timestamp: '20/11/2026 09:45:12',
+                    machineId: 1,
+                    shift: 'กะ A',
+                    duration: '8 ชม.',
+                    operator: 'นายอนิวัฒน์ ทองลาด',
+                    speed: 54,
+                    weight: 1002.5,
+                    vTemp: 145,
+                    hTemp: 150,
+                    airPressure: 6.2,
+                    sealQuality: 'ปกติ',
+                    notes: 'เดินเครื่องต่อเนื่อง รอยซีลเรียบสวย น้ำหนักนิ่งดี'
+                },
+                {
+                    id: 'log-sample-2',
+                    timestamp: '20/11/2026 08:30:05',
+                    machineId: 4,
+                    shift: 'กะ A',
+                    duration: '8 ชม.',
+                    operator: 'นายภานุพงค์ นามวิเศษ',
+                    speed: 48,
+                    weight: 1004.0,
+                    vTemp: 148,
+                    hTemp: 152,
+                    airPressure: 6.0,
+                    sealQuality: 'ปกติ',
+                    notes: 'เปลี่ยนม้วนฟิล์มใหม่และทดสอบน้ำหนัก 5 ถุงแรกผ่านเกณฑ์'
+                }
+            ];
+
+            // ---------------------------------------------------------
+            // 2. APPLICATION STATE
+            // ---------------------------------------------------------
+            const state = {
+                machineId: 1,
+                shift: 'กะ A',
+                duration: '8 ชม.',
+                sealQuality: 'ปกติ',
+                activeTab: 'form', // 'form' | 'history'
+                logs: []
+            };
+
+            let pendingConfirmCallback = null;
+
+            // ---------------------------------------------------------
+            // 3. DOM ELEMENTS
+            // ---------------------------------------------------------
+            const dom = {
+                html: document.documentElement,
+                themeToggleBtn: document.getElementById('themeToggleBtn'),
+                headerClockDesktop: document.getElementById('headerClockDesktop'),
+                headerClockMobile: document.getElementById('headerClockMobile'),
+
+                bannerIconWrap: document.getElementById('bannerIconWrap'),
+                activeContextPill: document.getElementById('activeContextPill'),
+                activeMachineLabel: document.getElementById('activeMachineLabel'),
+                activeShiftSummary: document.getElementById('activeShiftSummary'),
+
+                tabBtnForm: document.getElementById('tabBtnForm'),
+                tabBtnHistory: document.getElementById('tabBtnHistory'),
+                logsCountBadge: document.getElementById('logsCountBadge'),
+
+                parameterForm: document.getElementById('parameterForm'),
+                historyView: document.getElementById('historyView'),
+                logsContainer: document.getElementById('logsContainer'),
+                clearAllLogsBtn: document.getElementById('clearAllLogsBtn'),
+
+                machineGrid: document.getElementById('machineGrid'),
+                operatorSelect: document.getElementById('operatorSelect'),
+                speedInput: document.getElementById('speedInput'),
+                speedMinusBtn: document.getElementById('speedMinusBtn'),
+                speedPlusBtn: document.getElementById('speedPlusBtn'),
+                speedStatusBadge: document.getElementById('speedStatusBadge'),
+
+                weightInput: document.getElementById('weightInput'),
+                weightStatusBadge: document.getElementById('weightStatusBadge'),
+
+                vTempInput: document.getElementById('vTempInput'),
+                hTempInput: document.getElementById('hTempInput'),
+                airPressureInput: document.getElementById('airPressureInput'),
+                notesInput: document.getElementById('notesInput'),
+
+                resetBtn: document.getElementById('resetBtn'),
+                toastContainer: document.getElementById('toastContainer'),
+
+                confirmModal: document.getElementById('confirmModal'),
+                confirmModalTitle: document.getElementById('confirmModalTitle'),
+                confirmModalDesc: document.getElementById('confirmModalDesc'),
+                confirmCancelBtn: document.getElementById('confirmCancelBtn'),
+                confirmOkBtn: document.getElementById('confirmOkBtn')
+            };
+
+            // ---------------------------------------------------------
+            // 4. UTILITY FUNCTIONS
+            // ---------------------------------------------------------
+            function hexToRgba(hex, alpha) {
+                const cleanHex = hex.replace('#', '');
+                const r = parseInt(cleanHex.substring(0, 2), 16);
+                const g = parseInt(cleanHex.substring(2, 4), 16);
+                const b = parseInt(cleanHex.substring(4, 6), 16);
+                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            }
+
+            function getMachineById(id) {
+                return MACHINES.find(m => m.id === Number(id)) || MACHINES[0];
+            }
+
+            function formatTimestamp(date) {
+                const pad = (n) => String(n).padStart(2, '0');
+                const dd = pad(date.getDate());
+                const mm = pad(date.getMonth() + 1);
+                const yyyy = date.getFullYear();
+                const hh = pad(date.getHours());
+                const min = pad(date.getMinutes());
+                const ss = pad(date.getSeconds());
+                return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
+            }
+
+            function escapeHtml(str) {
+                if (!str) return '';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
+            // ---------------------------------------------------------
+            // 5. LOCAL STORAGE HANDLING (WITH FALLBACK)
+            // ---------------------------------------------------------
+            function loadLogs() {
+                try {
+                    const saved = localStorage.getItem(STORAGE_KEY);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed)) {
+                            state.logs = parsed;
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('LocalStorage read error, using memory fallback:', e);
+                }
+                state.logs = [...SAMPLE_LOGS];
+                saveLogs();
+            }
+
+            function saveLogs() {
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.logs));
+                } catch (e) {
+                    console.warn('LocalStorage write error:', e);
+                }
+            }
+
+            // ---------------------------------------------------------
+            // 6. THEME MANAGEMENT (LIGHT DEFAULT / DARK TOGGLE)
+            // ---------------------------------------------------------
+            function initTheme() {
+                try {
+                    const savedTheme = localStorage.getItem(THEME_KEY);
+                    if (savedTheme === 'dark') {
+                        dom.html.classList.add('dark');
+                        dom.html.classList.remove('light');
+                    } else {
+                        dom.html.classList.remove('dark');
+                        dom.html.classList.add('light');
+                    }
+                } catch (e) {
+                    dom.html.classList.remove('dark');
+                }
+            }
+
+            function toggleTheme() {
+                const isDark = dom.html.classList.toggle('dark');
+                dom.html.classList.toggle('light', !isDark);
+                try {
+                    localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+                } catch (e) { /* ignore */ }
+                showToast(isDark ? 'เปลี่ยนเป็นโหมดกลางคืน (Dark Mode)' : 'เปลี่ยนเป็นโหมดสว่าง (Light Mode)', 'info');
+            }
+
+            // ---------------------------------------------------------
+            // 7. REAL-TIME DIGITAL CLOCK
+            // ---------------------------------------------------------
+            function updateClock() {
+                const nowStr = formatTimestamp(new Date());
+                if (dom.headerClockDesktop) dom.headerClockDesktop.textContent = nowStr;
+                if (dom.headerClockMobile) dom.headerClockMobile.textContent = nowStr;
+            }
+
+            // ---------------------------------------------------------
+            // 8. TOAST NOTIFICATIONS & CUSTOM CONFIRM MODAL
+            // ---------------------------------------------------------
+            function showToast(message, type = 'success') {
+                const toast = document.createElement('div');
+                const styles = {
+                    success: {
+                        bg: 'bg-emerald-600 dark:bg-emerald-500 text-white',
+                        icon: 'check-circle-2'
+                    },
+                    error: {
+                        bg: 'bg-rose-600 dark:bg-rose-500 text-white',
+                        icon: 'alert-circle'
+                    },
+                    info: {
+                        bg: 'bg-slate-800 dark:bg-slate-700 text-white',
+                        icon: 'info'
+                    }
+                };
+                const cfg = styles[type] || styles.info;
+
+                toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl text-sm font-medium animate-fade-slide ${cfg.bg}`;
+                toast.innerHTML = `
+                    <i data-lucide="${cfg.icon}" class="w-5 h-5 shrink-0"></i>
+                    <span class="leading-snug">${escapeHtml(message)}</span>
+                `;
+
+                dom.toastContainer.appendChild(toast);
+                lucide.createIcons({ nodes: [toast] });
+
+                setTimeout(() => {
+                    toast.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(-8px)';
+                    setTimeout(() => toast.remove(), 260);
+                }, 3000);
+            }
+
+            function openConfirmModal(title, desc, onConfirm) {
+                dom.confirmModalTitle.textContent = title;
+                dom.confirmModalDesc.textContent = desc;
+                pendingConfirmCallback = onConfirm;
+                dom.confirmModal.classList.remove('hidden');
+                dom.confirmModal.classList.add('flex');
+            }
+
+            function closeConfirmModal() {
+                dom.confirmModal.classList.add('hidden');
+                dom.confirmModal.classList.remove('flex');
+                pendingConfirmCallback = null;
+            }
+
+            // ---------------------------------------------------------
+            // 9. DYNAMIC MACHINE & SHIFT UI RENDERING
+            // ---------------------------------------------------------
+            function renderMachineGrid() {
+                dom.machineGrid.innerHTML = '';
+
+                MACHINES.forEach((m) => {
+                    const isSelected = m.id === state.machineId;
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = `relative overflow-hidden py-3 px-2 rounded-2xl font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 border active:scale-95 ${
+                        isSelected
+                            ? 'scale-[1.02] bg-white dark:bg-slate-800'
+                            : 'bg-slate-50/90 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800'
+                    }`;
+
+                    if (isSelected) {
+                        btn.style.borderColor = m.color;
+                        btn.style.color = m.color;
+                        btn.style.backgroundColor = hexToRgba(m.color, 0.10);
+                        btn.style.boxShadow = `0 0 0 2px ${hexToRgba(m.color, 0.25)}, 0 6px 14px -4px ${hexToRgba(m.color, 0.35)}`;
+                    }
+
+                    btn.innerHTML = `
+                        <span class="absolute left-0 top-2 bottom-2 w-1 rounded-r-full transition-all" style="background-color: ${m.color};"></span>
+                        <span class="w-2 h-2 rounded-full shrink-0" style="background-color: ${m.color};"></span>
+                        <span>${m.label}</span>
+                    `;
+
+                    btn.addEventListener('click', () => {
+                        state.machineId = m.id;
+                        renderMachineGrid();
+                        updateContextBanner();
+                    });
+
+                    dom.machineGrid.appendChild(btn);
+                });
+            }
+
+            function updateContextBanner() {
+                const machine = getMachineById(state.machineId);
+                dom.activeMachineLabel.textContent = `เครื่องบรรจุ 1Kg • ${machine.label}`;
+                dom.activeShiftSummary.textContent = `${state.shift} • ${state.duration}`;
+
+                dom.activeContextPill.style.backgroundColor = machine.color;
+                dom.activeContextPill.style.boxShadow = `0 10px 24px -6px ${hexToRgba(machine.color, 0.50)}`;
+
+                dom.bannerIconWrap.style.backgroundColor = hexToRgba(machine.color, 0.14);
+                dom.bannerIconWrap.style.color = machine.color;
+            }
+
+            function renderShiftControls() {
+                // Shift A/B/C buttons
+                document.querySelectorAll('.shift-btn').forEach((btn) => {
+                    const active = btn.dataset.shift === state.shift;
+                    btn.className = `shift-btn py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                        active
+                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                            : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-700/60'
+                    }`;
+                });
+
+                // Duration 8h / 12h buttons
+                document.querySelectorAll('.duration-btn').forEach((btn) => {
+                    const active = btn.dataset.duration === state.duration;
+                    btn.className = `duration-btn flex items-center justify-center gap-1.5 py-3 px-3 rounded-2xl text-xs sm:text-sm font-semibold border transition-all duration-200 active:scale-[0.98] ${
+                        active
+                            ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-transparent shadow-md shadow-blue-500/25'
+                            : 'bg-slate-50/90 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800'
+                    }`;
+                });
+
+                updateContextBanner();
+            }
+
+            function renderSealQualityControls() {
+                document.querySelectorAll('.seal-btn').forEach((btn) => {
+                    const val = btn.dataset.seal;
+                    const active = val === state.sealQuality;
+                    if (val === 'ปกติ') {
+                        btn.className = `seal-btn flex items-center justify-center gap-1.5 rounded-2xl text-sm font-semibold border transition-all duration-200 active:scale-[0.98] ${
+                            active
+                                ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/25'
+                                : 'bg-slate-50/90 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800'
+                        }`;
+                    } else {
+                        btn.className = `seal-btn flex items-center justify-center gap-1.5 rounded-2xl text-sm font-semibold border transition-all duration-200 active:scale-[0.98] ${
+                            active
+                                ? 'bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-500/25'
+                                : 'bg-slate-50/90 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800'
+                        }`;
+                    }
+                });
+            }
+
+            // ---------------------------------------------------------
+            // 10. REAL-TIME PARAMETER STATUS BADGES
+            // ---------------------------------------------------------
+            function updateSpeedBadge() {
+                const val = parseFloat(dom.speedInput.value);
+                if (isNaN(val) || val <= 0) {
+                    dom.speedStatusBadge.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+                    dom.speedStatusBadge.innerHTML = `<i data-lucide="minus-circle" class="w-3.5 h-3.5"></i> รอระบุค่า`;
+                } else if (val >= 45 && val <= 60) {
+                    dom.speedStatusBadge.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300';
+                    dom.speedStatusBadge.innerHTML = `<i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> ปกติ (45-60)`;
+                } else if (val < 45) {
+                    dom.speedStatusBadge.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300';
+                    dom.speedStatusBadge.innerHTML = `<i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> ช้ากว่าเกณฑ์`;
+                } else {
+                    dom.speedStatusBadge.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300';
+                    dom.speedStatusBadge.innerHTML = `<i data-lucide="alert-octagon" class="w-3.5 h-3.5"></i> สูงเกินเกณฑ์`;
+                }
+                lucide.createIcons({ nodes: [dom.speedStatusBadge] });
+            }
+
+            function updateWeightBadge() {
+                const raw = dom.weightInput.value.trim();
+                const val = parseFloat(raw);
+                if (raw === '' || isNaN(val)) {
+                    dom.weightStatusBadge.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+                    dom.weightStatusBadge.innerHTML = `<i data-lucide="minus-circle" class="w-3.5 h-3.5"></i> ยังไม่ระบุ`;
+                } else if (val >= 1000 && val <= 1005) {
+                    dom.weightStatusBadge.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300';
+                    dom.weightStatusBadge.innerHTML = `<i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> ผ่านเกณฑ์ (Pass)`;
+                } else {
+                    dom.weightStatusBadge.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300';
+                    dom.weightStatusBadge.innerHTML = `<i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> ตรวจสอบ (Check)`;
+                }
+                lucide.createIcons({ nodes: [dom.weightStatusBadge] });
+            }
+
+            // ---------------------------------------------------------
+            // 11. TAB SWITCHER & RECENT LOGS RENDERING
+            // ---------------------------------------------------------
+            function switchTab(tab) {
+                state.activeTab = tab;
+                const isForm = tab === 'form';
+
+                dom.parameterForm.classList.toggle('hidden', !isForm);
+                dom.historyView.classList.toggle('hidden', isForm);
+
+                dom.tabBtnForm.setAttribute('aria-selected', String(isForm));
+                dom.tabBtnHistory.setAttribute('aria-selected', String(!isForm));
+
+                if (isForm) {
+                    dom.tabBtnForm.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25';
+                    dom.tabBtnHistory.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/80';
+                    dom.logsCountBadge.className = 'px-2 py-0.5 text-xs font-mono font-bold rounded-full bg-slate-200/90 dark:bg-slate-700 text-slate-700 dark:text-slate-200';
+                } else {
+                    dom.tabBtnHistory.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25';
+                    dom.tabBtnForm.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/80';
+                    dom.logsCountBadge.className = 'px-2 py-0.5 text-xs font-mono font-bold rounded-full bg-white/25 text-white';
+                    renderLogs();
+                }
+            }
+
+            function renderLogs() {
+                dom.logsCountBadge.textContent = state.logs.length;
+                dom.clearAllLogsBtn.classList.toggle('hidden', state.logs.length === 0);
+
+                if (state.logs.length === 0) {
+                    dom.logsContainer.innerHTML = `
+                        <div class="rounded-3xl backdrop-blur-xl bg-white/75 dark:bg-slate-900/70 border border-white/70 dark:border-slate-700/60 p-10 text-center space-y-3">
+                            <div class="w-14 h-14 mx-auto rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
+                                <i data-lucide="inbox" class="w-7 h-7"></i>
+                            </div>
+                            <h4 class="font-bold text-slate-700 dark:text-slate-200">ยังไม่มีประวัติการบันทึก</h4>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">กรอกพารามิเตอร์ในแท็บ "บันทึกข้อมูล" เพื่อเริ่มต้นบันทึกประวัติการทำงาน</p>
+                        </div>
+                    `;
+                    lucide.createIcons({ nodes: [dom.logsContainer] });
+                    return;
+                }
+
+                dom.logsContainer.innerHTML = '';
+
+                state.logs.forEach((log) => {
+                    const machine = getMachineById(log.machineId);
+                    const isSealOk = log.sealQuality === 'ปกติ';
+                    const isWeightOk = log.weight !== null && log.weight >= 1000 && log.weight <= 1005;
+
+                    const card = document.createElement('article');
+                    card.className = 'rounded-3xl backdrop-blur-xl bg-white/80 dark:bg-slate-900/75 border border-white/70 dark:border-slate-700/60 shadow-glass dark:shadow-glass-dark p-4 sm:p-5 space-y-3.5 transition-all hover:shadow-lg';
+
+                    card.innerHTML = `
+                        <!-- Top Row: Machine Badge, Timestamp & Delete -->
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold text-white shadow-sm"
+                                      style="background-color: ${machine.color};">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                                    ${machine.label}
+                                </span>
+                                <span class="px-2.5 py-1 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                    ${escapeHtml(log.shift)} • ${escapeHtml(log.duration)}
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold ${
+                                    isSealOk
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                                        : 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
+                                }">
+                                    <i data-lucide="${isSealOk ? 'check-circle-2' : 'alert-triangle'}" class="w-3.5 h-3.5"></i>
+                                    ซีล: ${escapeHtml(log.sealQuality)}
+                                </span>
+                            </div>
+                            <button type="button" data-delete-id="${escapeHtml(log.id)}" aria-label="ลบรายการนี้"
+                                class="delete-log-btn p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors shrink-0">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+
+                        <!-- Operator & Timestamp -->
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-slate-500 dark:text-slate-400">
+                            <div class="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-200">
+                                <i data-lucide="user-check" class="w-3.5 h-3.5 text-blue-500"></i>
+                                <span>${escapeHtml(log.operator)}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 font-mono">
+                                <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                                <span>${escapeHtml(log.timestamp)}</span>
+                            </div>
+                        </div>
+
+                        <!-- Key Metrics Grid -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+                            <div class="p-2.5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/70">
+                                <span class="text-[10px] text-slate-400 block">ความเร็ว (Speed)</span>
+                                <span class="font-mono font-bold text-sm text-slate-800 dark:text-white">${log.speed} <span class="text-[10px] font-sans font-normal text-slate-400">bag/m</span></span>
+                            </div>
+                            <div class="p-2.5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/70">
+                                <span class="text-[10px] text-slate-400 block">น้ำหนัก (Weight)</span>
+                                <span class="font-mono font-bold text-sm ${isWeightOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}">
+                                    ${log.weight !== null ? log.weight : '-'} <span class="text-[10px] font-sans font-normal text-slate-400">g</span>
+                                </span>
+                            </div>
+                            <div class="p-2.5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/70">
+                                <span class="text-[10px] text-slate-400 block">อุณหภูมิซีล (V / H)</span>
+                                <span class="font-mono font-bold text-sm text-slate-800 dark:text-white">
+                                    ${log.vTemp !== null ? log.vTemp : '-'}° / ${log.hTemp !== null ? log.hTemp : '-'}°
+                                </span>
+                            </div>
+                            <div class="p-2.5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/70">
+                                <span class="text-[10px] text-slate-400 block">แรงดันลม (Air)</span>
+                                <span class="font-mono font-bold text-sm text-slate-800 dark:text-white">
+                                    ${log.airPressure !== null ? log.airPressure : '-'} <span class="text-[10px] font-sans font-normal text-slate-400">Bar</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        ${log.notes ? `
+                            <div class="px-3.5 py-2.5 rounded-2xl bg-blue-50/70 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 text-xs text-slate-600 dark:text-slate-300 flex items-start gap-2">
+                                <i data-lucide="message-square" class="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5"></i>
+                                <span>${escapeHtml(log.notes)}</span>
+                            </div>
+                        ` : ''}
+                    `;
+
+                    dom.logsContainer.appendChild(card);
+                });
+
+                // Attach delete handlers
+                dom.logsContainer.querySelectorAll('.delete-log-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        const targetId = btn.dataset.deleteId;
+                        openConfirmModal(
+                            'ลบรายการบันทึก',
+                            'คุณต้องการลบประวัติพารามิเตอร์รายการนี้ออกจากระบบใช่หรือไม่?',
+                            () => {
+                                state.logs = state.logs.filter(item => item.id !== targetId);
+                                saveLogs();
+                                renderLogs();
+                                showToast('ลบรายการบันทึกเรียบร้อยแล้ว', 'info');
+                            }
+                        );
+                    });
+                });
+
+                lucide.createIcons({ nodes: [dom.logsContainer] });
+            }
+
+            // ---------------------------------------------------------
+            // 12. FORM SUBMISSION & RESET HANDLERS
+            // ---------------------------------------------------------
+            function handleFormSubmit(e) {
+                e.preventDefault();
+
+                const operator = dom.operatorSelect.value.trim();
+                const speed = parseFloat(dom.speedInput.value);
+
+                // Validation
+                if (!operator) {
+                    showToast('กรุณาเลือกรายชื่อผู้ตรวจสอบ (Operator)', 'error');
+                    dom.operatorSelect.focus();
+                    return;
+                }
+
+                if (isNaN(speed) || speed <= 0) {
+                    showToast('กรุณาระบุความเร็วบรรจุ (Speed) ให้ถูกต้อง', 'error');
+                    dom.speedInput.focus();
+                    return;
+                }
+
+                const weightVal = dom.weightInput.value.trim();
+                const vTempVal = dom.vTempInput.value.trim();
+                const hTempVal = dom.hTempInput.value.trim();
+                const airVal = dom.airPressureInput.value.trim();
+
+                const newRecord = {
+                    id: 'log-' + Date.now(),
+                    timestamp: formatTimestamp(new Date()),
+                    machineId: state.machineId,
+                    shift: state.shift,
+                    duration: state.duration,
+                    operator: operator,
+                    speed: speed,
+                    weight: weightVal !== '' ? parseFloat(weightVal) : null,
+                    vTemp: vTempVal !== '' ? parseFloat(vTempVal) : null,
+                    hTemp: hTempVal !== '' ? parseFloat(hTempVal) : null,
+                    airPressure: airVal !== '' ? parseFloat(airVal) : null,
+                    sealQuality: state.sealQuality,
+                    notes: dom.notesInput.value.trim()
+                };
+
+                state.logs.unshift(newRecord);
+                saveLogs();
+                dom.logsCountBadge.textContent = state.logs.length;
+
+                const machine = getMachineById(state.machineId);
+                showToast(`บันทึกข้อมูลเครื่อง ${machine.label} สำเร็จแล้ว!`, 'success');
+
+                // Reset notes & switch to History view or keep ready for next entry
+                dom.notesInput.value = '';
+                switchTab('history');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            function handleResetForm() {
+                dom.operatorSelect.value = '';
+                dom.speedInput.value = '52';
+                dom.weightInput.value = '1002';
+                dom.vTempInput.value = '145';
+                dom.hTempInput.value = '150';
+                dom.airPressureInput.value = '6.2';
+                dom.notesInput.value = '';
+                state.sealQuality = 'ปกติ';
+
+                renderSealQualityControls();
+                updateSpeedBadge();
+                updateWeightBadge();
+                showToast('ล้างค่าแบบฟอร์มกลับเป็นค่าเริ่มต้นแล้ว', 'info');
+            }
+
+            // ---------------------------------------------------------
+            // 13. EVENT LISTENERS & INITIALIZATION
+            // ---------------------------------------------------------
+            function bindEvents() {
+                dom.themeToggleBtn.addEventListener('click', toggleTheme);
+
+                dom.tabBtnForm.addEventListener('click', () => switchTab('form'));
+                dom.tabBtnHistory.addEventListener('click', () => switchTab('history'));
+
+                // Shift selectors
+                document.querySelectorAll('.shift-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        state.shift = btn.dataset.shift;
+                        renderShiftControls();
+                    });
+                });
+
+                document.querySelectorAll('.duration-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        state.duration = btn.dataset.duration;
+                        renderShiftControls();
+                    });
+                });
+
+                // Seal quality toggles
+                document.querySelectorAll('.seal-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        state.sealQuality = btn.dataset.seal;
+                        renderSealQualityControls();
+                    });
+                });
+
+                // Speed stepper buttons
+                dom.speedMinusBtn.addEventListener('click', () => {
+                    const current = parseInt(dom.speedInput.value, 10) || 0;
+                    dom.speedInput.value = Math.max(0, current - 1);
+                    updateSpeedBadge();
+                });
+
+                dom.speedPlusBtn.addEventListener('click', () => {
+                    const current = parseInt(dom.speedInput.value, 10) || 0;
+                    dom.speedInput.value = Math.min(120, current + 1);
+                    updateSpeedBadge();
+                });
+
+                // Live validation badges
+                dom.speedInput.addEventListener('input', updateSpeedBadge);
+                dom.weightInput.addEventListener('input', updateWeightBadge);
+
+                // Form actions
+                dom.parameterForm.addEventListener('submit', handleFormSubmit);
+                dom.resetBtn.addEventListener('click', handleResetForm);
+
+                // Clear all logs
+                dom.clearAllLogsBtn.addEventListener('click', () => {
+                    openConfirmModal(
+                        'ล้างประวัติทั้งหมด',
+                        'คุณต้องการลบประวัติการบันทึกทั้งหมดใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้',
+                        () => {
+                            state.logs = [];
+                            saveLogs();
+                            renderLogs();
+                            showToast('ล้างประวัติทั้งหมดเรียบร้อยแล้ว', 'info');
+                        }
+                    );
+                });
+
+                // Modal actions
+                dom.confirmCancelBtn.addEventListener('click', closeConfirmModal);
+                dom.confirmOkBtn.addEventListener('click', () => {
+                    if (typeof pendingConfirmCallback === 'function') {
+                        pendingConfirmCallback();
+                    }
+                    closeConfirmModal();
+                });
+                dom.confirmModal.addEventListener('click', (e) => {
+                    if (e.target === dom.confirmModal) closeConfirmModal();
+                });
+            }
+
+            function init() {
+                initTheme();
+                loadLogs();
+                bindEvents();
+
+                renderMachineGrid();
+                renderShiftControls();
+                renderSealQualityControls();
+                updateSpeedBadge();
+                updateWeightBadge();
+                dom.logsCountBadge.textContent = state.logs.length;
+
+                // Start live real-time clock
+                updateClock();
+                setInterval(updateClock, 1000);
+
+                // Initialize Lucide icons
+                lucide.createIcons();
+            }
+
+            // Boot app when DOM is ready
+            document.addEventListener('DOMContentLoaded', init);
+        })();
+    </script>
+</body>
+</html>

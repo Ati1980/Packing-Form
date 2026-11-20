@@ -12,7 +12,9 @@ import {
   CalendarDays, CheckCircle2, Box, Check,
   ChevronDown, ChevronUp, Thermometer, Sparkles, GaugeCircle,
   Cpu, Layers, Zap, Activity, Wrench, Shield, CheckSquare,
-  ClipboardList, ShieldAlert, Award, Camera, ImagePlus
+  ClipboardList, ShieldAlert, Award, Camera, ImagePlus,
+  SlidersHorizontal, Minus, Plus, CalendarClock, Flame,
+  History, Inbox, AlertTriangle, MessageSquare
 } from 'lucide-react';
 import Chart from 'chart.js/auto';
 import * as XLSX from 'xlsx';
@@ -66,6 +68,20 @@ const INSPECTORS = [
 ];
 
 const pad = (n: number) => String(n).padStart(2, '0');
+const getDefaultShiftTypeByDate = (date?: Date | string): '8h' | '12h' => {
+  let d: Date;
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [y, m, dayNum] = date.split('-').map(Number);
+    d = new Date(y, m - 1, dayNum);
+  } else if (date instanceof Date) {
+    d = date;
+  } else {
+    d = new Date();
+  }
+  const day = isNaN(d.getTime()) ? new Date().getDay() : d.getDay();
+  // Monday (1) - Thursday (4) => '8h' (ปุ่มที่ 1), Friday (5) - Sunday (0, 6) => '12h' (ปุ่มที่ 2)
+  return day >= 1 && day <= 4 ? '8h' : '12h';
+};
 const isToday = (dt?: string) => {
   if (!dt) return false;
   const d = new Date(dt);
@@ -369,7 +385,10 @@ const renderPctBadge = (pct: number) => {
 };
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'form' | 'oee' | 'film' | 'historyHub' | 'historySeal' | 'historyOee' | 'historyFilm' | 'dashboard'>('form');
+  const [currentView, setCurrentView] = useState<'form' | 'oee' | 'film' | 'dashboard'>('form');
+  const [formSubTab, setFormSubTab] = useState<'form' | 'history'>('form');
+  const [oeeSubTab, setOeeSubTab] = useState<'form' | 'history'>('form');
+  const [filmSubTab, setFilmSubTab] = useState<'form' | 'history'>('form');
   const [selectedMachine, setSelectedMachine] = useState<number>(1);
   const [records, setRecords] = useState<InspectionRecord[]>([]);
   const [sealTempRecords, setSealTempRecords] = useState<InspectionRecord[]>([]);
@@ -393,9 +412,12 @@ export default function App() {
   const [filmMachine, setFilmMachine] = useState<number>(1);
   const [filmOperator, setFilmOperator] = useState<string>('');
   const [filmShift, setFilmShift] = useState<string>('A');
-  const [filmShiftType, setFilmShiftType] = useState<'8h' | '12h'>('8h');
+  const [filmShiftType, setFilmShiftType] = useState<'8h' | '12h'>(() => getDefaultShiftTypeByDate());
   const [filmSupplier, setFilmSupplier] = useState<string>('TG');
-  const [filmDate, setFilmDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [filmDate, setFilmDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  });
   const [filmChangeTime, setFilmChangeTime] = useState<string>(new Date().toTimeString().slice(0, 5));
   const [filmTagPhoto, setFilmTagPhoto] = useState<string | null>(null);
   const [filmLot, setFilmLot] = useState<string>('');
@@ -472,9 +494,12 @@ export default function App() {
 
   // Form State
   const [shift, setShift] = useState<string>('A');
-  const [shiftType, setShiftType] = useState<'8h' | '12h'>('8h');
+  const [shiftType, setShiftType] = useState<'8h' | '12h'>(() => getDefaultShiftTypeByDate());
   const [operator, setOperator] = useState<string>('');
-  const [reportDate, setReportDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [reportDate, setReportDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  });
   const [speed, setSpeed] = useState<string>('');
   const [no1Group, setNo1Group] = useState<'group1' | 'group2'>('group1');
 
@@ -512,8 +537,8 @@ export default function App() {
   const [isOperatorDropdownOpen, setIsOperatorDropdownOpen] = useState<boolean>(false);
 
   const [breakdownMin, setBreakdownMin] = useState<string>('0');
-  const [planTime, setPlanTime] = useState<string>('480');
-  const [runTime, setRunTime] = useState<string>('480');
+  const [planTime, setPlanTime] = useState<string>(() => (getDefaultShiftTypeByDate() === '12h' ? '720' : '480'));
+  const [runTime, setRunTime] = useState<string>(() => (getDefaultShiftTypeByDate() === '12h' ? '720' : '480'));
   const [speedStd, setSpeedStd] = useState<string>('34.67');
   const [speedSet, setSpeedSet] = useState<string>('45.00');
   const [userModifiedTarget, setUserModifiedTarget] = useState<boolean>(false);
@@ -613,9 +638,7 @@ export default function App() {
     opacity: 0
   });
 
-  const activeNavKey = ['historyHub', 'historySeal', 'historyOee', 'historyFilm'].includes(currentView)
-    ? 'historyHub'
-    : currentView;
+  const activeNavKey = currentView;
   const targetNavKey = hoveredNav || activeNavKey;
   const mobileTargetNavKey = mobileHoveredNav || activeNavKey;
 
@@ -1167,41 +1190,84 @@ export default function App() {
   const availabilityRate = 92;
   const oeeScore = Math.round((availabilityRate * performanceRate * qualityRate) / 10000);
 
-  // Clean Light Mode Palette
-  const appBg = 'bg-slate-50 text-slate-900';
-  const navbarBg = 'bg-white/95 border-slate-200 shadow-md';
-  const cardBg = 'bg-white border-slate-200 shadow-xl';
-  const subCardBg = 'bg-slate-100/90 border-slate-200 text-slate-900';
-  const inputBg = 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-600';
+  // Clean Glassmorphic Light Mode Palette
+  const appBg = 'bg-sky-50 text-slate-800';
+  const navbarBg = 'bg-white/75 border-white/70 shadow-sm';
+  const cardBg = 'bg-white/82 border-white/80 shadow-glass';
+  const subCardBg = 'bg-slate-50/90 border-slate-200/80 text-slate-900';
+  const inputBg = 'bg-slate-50/90 border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-500/35 focus:border-blue-500';
   const textMuted = 'text-slate-500';
-  const navDockBg = 'bg-slate-200 border-slate-300';
+  const navDockBg = 'bg-slate-100/85 border-slate-200/90';
 
   return (
     <div className={`min-h-screen ${appBg} font-sans relative overflow-x-hidden transition-colors duration-300`}>
-      {/* Ambient Vibrant Glow Effects */}
-      <div className="fixed -top-45 -right-30 w-125 h-125 rounded-full blur-[140px] pointer-events-none z-0 opacity-25 bg-blue-400"></div>
-      <div className="fixed -bottom-45 -left-30 w-125 h-125 rounded-full blur-[140px] pointer-events-none z-0 opacity-25 bg-indigo-400"></div>
+      {/* Background Image */}
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 z-0 pointer-events-none bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url('./assets/aistudio/5153829_d0edf9c1.jpg')" }}
+      />
+      <div aria-hidden="true" className="fixed inset-0 z-0 pointer-events-none bg-white/10" />
 
       <div className="max-w-7xl mx-auto min-h-screen flex flex-col pb-24 md:pb-10 relative z-10">
         {/* Main Header Navbar - Adjusted Font */}
         <header className={`sticky top-0 z-50 backdrop-blur-xl border-b ${navbarBg}`}>
-          <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-3.5">
-              <div className="w-13 h-13 md:w-14 md:h-14 rounded-2xl bg-gradient-to-tr from-amber-500 via-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/35 ring-4 ring-blue-400/30">
-                <Factory className="w-7 h-7 md:w-8 md:h-8 animate-pulse text-white" />
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-2.5 flex items-center justify-between gap-4">
+            {/* Redesigned Brand Identity */}
+            <div
+              onClick={() => setCurrentView('form')}
+              className="flex items-center gap-3 cursor-pointer group select-none"
+            >
+              <div
+                className="relative w-11 h-11 md:w-12 md:h-12 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/25 ring-2 ring-white/80 transition-transform duration-300 group-hover:scale-105 shrink-0"
+                style={{ background: 'linear-gradient(135deg, #3498db 0%, #6366f1 55%, #8e44ad 100%)' }}
+              >
+                <Factory className="w-6 h-6 text-white drop-shadow-sm" />
               </div>
-              <div>
-                <h1 className="text-base md:text-xl font-black tracking-tight font-display text-slate-900 flex items-center gap-1.5">
-                  SMART PACKING <span className="text-blue-600 font-black">PRO</span>
-                </h1>
-                <p className="text-[11px] font-bold text-slate-500">Sugar Packaging Machine OEE & Inspection Controller</p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <motion.h1
+                    initial={{ opacity: 0, y: -8, letterSpacing: '0.08em' }}
+                    animate={{ opacity: 1, y: 0, letterSpacing: '-0.02em' }}
+                    transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+                    className="text-base md:text-lg font-extrabold font-display leading-tight truncate flex items-center gap-1.5 text-slate-900"
+                  >
+                    <span className="inline-flex items-center text-slate-900">
+                      {'SMART PACKING'.split('').map((char, idx) => (
+                        <motion.span
+                          key={idx}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, delay: idx * 0.03, ease: 'easeOut' }}
+                          className="inline-block"
+                        >
+                          {char === ' ' ? '\u00A0' : char}
+                        </motion.span>
+                      ))}
+                    </span>
+                    <motion.span
+                      initial={{ opacity: 0, scale: 0.75 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.45, delay: 0.42, ease: [0.16, 1, 0.3, 1] }}
+                      className="font-black bg-clip-text text-transparent animate-text-flow inline-block"
+                      style={{
+                        backgroundImage: 'linear-gradient(90deg, #3498db 0%, #8e44ad 50%, #3498db 100%)'
+                      }}
+                    >
+                      PRO
+                    </motion.span>
+                  </motion.h1>
+                </div>
+                <p className="text-[11px] md:text-xs font-semibold text-slate-500 leading-tight mt-0.5 truncate">
+                  ระบบควบคุม OEE และคุณภาพเครื่องบรรจุ 1Kg
+                </p>
               </div>
             </div>
 
             {/* Desktop Navigation Dock */}
             <nav
               onMouseLeave={() => setHoveredNav(null)}
-              className={`hidden md:flex relative items-center p-1 rounded-xl border gap-1 shadow-inner ${navDockBg}`}
+              className="hidden md:flex relative items-center p-1.5 rounded-2xl border border-slate-200/90 bg-slate-100/85 gap-1 shadow-inner"
             >
               {[
                 {
@@ -1224,11 +1290,6 @@ export default function App() {
                   )
                 },
                 {
-                  key: 'historyHub',
-                  label: 'ประวัติ',
-                  icon: <Clock className={`w-3.5 h-3.5 transition-colors duration-300 ${targetNavKey === 'historyHub' ? 'text-white' : 'text-blue-500'}`} />
-                },
-                {
                   key: 'dashboard',
                   label: 'แดชบอร์ด',
                   icon: <Award className={`w-3.5 h-3.5 transition-colors duration-300 ${targetNavKey === 'dashboard' ? 'text-white' : 'text-indigo-500'}`} />
@@ -1241,7 +1302,7 @@ export default function App() {
                     ref={el => { navBtnRefs.current[item.key] = el; }}
                     onClick={() => setCurrentView(item.key as any)}
                     onMouseEnter={() => setHoveredNav(item.key)}
-                    className={`relative z-10 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-black transition-colors duration-300 whitespace-nowrap ${
+                    className={`relative z-10 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-colors duration-300 whitespace-nowrap ${
                       isHighlighted ? 'text-white' : 'text-slate-700 hover:text-slate-900'
                     }`}
                   >
@@ -1251,7 +1312,7 @@ export default function App() {
               })}
               <span
                 aria-hidden="true"
-                className="absolute top-1 bottom-1 rounded-lg pointer-events-none transition-all duration-500 ease-out shadow-md z-0"
+                className="absolute top-1.5 bottom-1.5 rounded-xl pointer-events-none transition-all duration-500 ease-out shadow-md z-0"
                 style={{
                   left: `${navIndicatorStyle.left}px`,
                   width: `${navIndicatorStyle.width}px`,
@@ -1272,35 +1333,374 @@ export default function App() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            className="flex-1 p-4 md:p-6"
+            className="flex-1 p-4 md:p-6 space-y-5"
           >
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-              <div>
-                <h2 className="text-lg md:text-xl font-black flex items-center gap-2 font-display text-slate-900">
-                  <span className="flex items-center gap-1.5 text-blue-600 text-base md:text-lg"><Wrench className="w-5 h-5" /> บันทึกพารามิเตอร์ —</span>
-                  <span className="px-3 py-1 rounded-xl text-white shadow-md text-sm md:text-base flex items-center gap-1.5" style={{ backgroundColor: activeMachineObj.color }}>
-                    {activeMachineObj.name}
-                  </span>
-                </h2>
-              </div>
-              <div className="font-mono text-xs px-3 py-1.5 rounded-xl border flex items-center gap-2 bg-white border-slate-300 font-bold text-slate-700 shadow-sm">
-                <span>🕒 {clockString}</span>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Card 1: Shift & Operator & Machine Selector */}
-              <div className={`backdrop-blur-xl border rounded-2xl p-3 flex flex-col gap-2.5 ${cardBg}`}>
-                <div className="text-xs font-black text-blue-600 uppercase tracking-wider flex items-center gap-1.5 font-display">
-                  <UserCheck className="w-4 h-4 text-blue-600" /> Shift & Operator Selection
+            {/* Active Context Banner */}
+            <section className={`rounded-3xl backdrop-blur-xl border p-4 sm:p-5 transition-all duration-300 ${cardBg}`}>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-colors duration-300"
+                    style={{ backgroundColor: `${activeMachineObj.color}20`, color: activeMachineObj.color }}
+                  >
+                    <SlidersHorizontal className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight font-display">
+                      บันทึกพารามิเตอร์
+                    </h2>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      ตรวจสอบและบันทึกค่ามาตรฐานเครื่องบรรจุประจำกะ
+                    </p>
+                  </div>
                 </div>
 
-                {/* Smaller Machine Selection Cards */}
-                <div className="space-y-1.5">
-                  <label className={`text-xs font-black flex items-center gap-1.5 ${textMuted}`}>
-                    <Factory className="w-3.5 h-3.5 text-blue-600" /> เลือกเครื่องจักร (Machine) <span className="text-rose-600">*</span>
+                <div className="flex flex-wrap items-center gap-2.5 justify-between md:justify-end">
+                  {/* Live Digital Clock Pill */}
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100/90 border border-slate-200/80 shadow-inner">
+                    <Clock className="w-3.5 h-3.5 text-blue-600" />
+                    <span className="font-mono text-xs font-semibold text-slate-700 tracking-tight">
+                      {clockString}
+                    </span>
+                  </div>
+
+                  {/* Dynamic Machine & Shift Summary Pill */}
+                  <div
+                    className="flex items-center justify-center gap-3 px-4 py-2 rounded-2xl text-white transition-all duration-300"
+                    style={{
+                      backgroundColor: activeMachineObj.color,
+                      boxShadow: `0 10px 24px -6px ${activeMachineObj.color}75`
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
+                      <span className="font-bold text-xs sm:text-sm tracking-wide font-display">
+                        เครื่องบรรจุ 1Kg • No.{activeMachineObj.id}
+                      </span>
+                    </div>
+                    <span className="h-4 w-px bg-white/35"></span>
+                    <span className="text-xs font-semibold bg-black/15 px-2.5 py-0.5 rounded-xl whitespace-nowrap">
+                      กะ {shift} • {shiftType === '12h' ? '12 ชม.' : '8 ชม.'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* View Switcher Tabs (2 Tabs: บันทึกข้อมูล / ประวัติล่าสุด) */}
+            {(() => {
+              const recentSealLogs = sealTempRecords.length > 0
+                ? sealTempRecords
+                : records.filter(r => r.recordType === 'sealTemp' || (!r.recordType && r.tempFront != null));
+
+              return (
+                <>
+                  <div
+                    role="tablist"
+                    aria-label="มุมมองบันทึกพารามิเตอร์"
+                    className={`p-1.5 rounded-2xl backdrop-blur-xl border shadow-glass grid grid-cols-2 gap-1.5 ${cardBg}`}
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={formSubTab === 'form'}
+                      onClick={() => setFormSubTab('form')}
+                      className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 font-display ${
+                        formSubTab === 'form'
+                          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                          : 'text-slate-600 hover:bg-slate-100/80'
+                      }`}
+                    >
+                      <ClipboardEdit className="w-4 h-4" />
+                      <span>บันทึกข้อมูล</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={formSubTab === 'history'}
+                      onClick={() => setFormSubTab('history')}
+                      className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 font-display ${
+                        formSubTab === 'history'
+                          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                          : 'text-slate-600 hover:bg-slate-100/80'
+                      }`}
+                    >
+                      <History className="w-4 h-4" />
+                      <span>ประวัติล่าสุด</span>
+                      <span
+                        className={`px-2 py-0.5 text-xs font-mono font-bold rounded-full transition-colors ${
+                          formSubTab === 'history'
+                            ? 'bg-white/25 text-white'
+                            : 'bg-slate-200/90 text-slate-700'
+                        }`}
+                      >
+                        {recentSealLogs.length}
+                      </span>
+                    </button>
+                  </div>
+
+                  {formSubTab === 'history' && (() => {
+                    const filteredSeal = recentSealLogs.filter(r => {
+                      const recDate = r.reportDate || r.datetime || '';
+                      if (sealFilterDate && !matchesDateFilter(recDate, sealFilterDate)) return false;
+                      if (sealFilterMachine !== 'all' && r.machine !== sealFilterMachine) return false;
+                      if (sealFilterShift !== 'all' && r.shift !== sealFilterShift) return false;
+                      if (sealFilterOperator !== 'all' && r.operator !== sealFilterOperator) return false;
+                      return true;
+                    });
+
+                    const renderChecklistBadge = (val?: string | null) => {
+                      const isPass = val === 'pass' || val === 'ผ่าน';
+                      const isFail = val === 'fail' || val === 'ไม่ผ่าน';
+                      if (isPass) return <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px] font-black border border-emerald-200">✔ ผ่าน</span>;
+                      if (isFail) return <span className="text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded text-[10px] font-black border border-rose-200">✘ ไม่ผ่าน</span>;
+                      return <span className="text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-slate-200">-</span>;
+                    };
+
+                    return (
+                    <section className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+                        <div>
+                          <h3 className="text-base font-bold text-slate-800 flex items-center gap-2 font-display">
+                            <ListCheck className="w-5 h-5 text-blue-600" />
+                            <span>ประวัติบันทึก Seal Temp (Temperature & Check Sheet)</span>
+                          </h3>
+                          <p className="text-xs text-slate-500">รายการประวัติการตรวจสอบอุณหภูมิฮีตเตอร์และซีลความร้อน</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleExportExcel}
+                          className="px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-800 text-xs font-black flex items-center gap-2 hover:bg-emerald-500/30 transition shadow-sm self-start sm:self-auto"
+                        >
+                          <FileSpreadsheet className="w-4 h-4" /> ส่งออก Excel
+                        </button>
+                      </div>
+
+                      {/* Filter Bar for Seal Temp History */}
+                      <div className={`backdrop-blur-xl border rounded-2xl p-3 shadow-glass ${cardBg} grid grid-cols-1 sm:grid-cols-4 gap-2.5`}>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[10px] font-black text-slate-600 block">📅 วันที่ (Date)</label>
+                            <button
+                              type="button"
+                              onClick={() => setSealFilterDate(sealFilterDate ? '' : new Date().toISOString().slice(0, 10))}
+                              className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition ${!sealFilterDate ? 'bg-blue-600 text-white border-blue-700 shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'}`}
+                            >
+                              {!sealFilterDate ? '✓ All (ทั้งหมด)' : 'All'}
+                            </button>
+                          </div>
+                          <input
+                            type="date"
+                            value={sealFilterDate}
+                            onChange={e => setSealFilterDate(e.target.value)}
+                            className="w-full text-xs font-mono font-bold border rounded-xl p-2 bg-white text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-slate-600 block mb-1">⚙️ เครื่องจักร (Machine)</label>
+                          <select
+                            value={sealFilterMachine}
+                            onChange={e => setSealFilterMachine(e.target.value)}
+                            className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
+                          >
+                            <option value="all">All (ทุกเครื่อง)</option>
+                            {MACHINES.map(m => (
+                              <option key={m.id} value={m.name}>{m.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-slate-600 block mb-1">⏰ กะ (Shift)</label>
+                          <select
+                            value={sealFilterShift}
+                            onChange={e => setSealFilterShift(e.target.value)}
+                            className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
+                          >
+                            <option value="all">All (ทุกกะ)</option>
+                            <option value="A">กะ A</option>
+                            <option value="B">กะ B</option>
+                            <option value="C">กะ C</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-slate-600 block mb-1">👤 ผู้บันทึก (Operator)</label>
+                          <select
+                            value={sealFilterOperator}
+                            onChange={e => setSealFilterOperator(e.target.value)}
+                            className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
+                          >
+                            <option value="all">All (ทุกคน)</option>
+                            {INSPECTORS.map(ins => (
+                              <option key={ins.name} value={ins.name}>{ins.emoji} {ins.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {(sealFilterDate || sealFilterMachine !== 'all' || sealFilterShift !== 'all' || sealFilterOperator !== 'all') && (
+                        <div className="flex items-center justify-between bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-xs text-blue-800 font-bold">
+                          <span>กำลังกรองข้อมูล (Matched: {filteredSeal.length})</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSealFilterDate('');
+                              setSealFilterMachine('all');
+                              setSealFilterShift('all');
+                              setSealFilterOperator('all');
+                            }}
+                            className="text-rose-600 hover:underline font-black"
+                          >
+                            ล้างตัวกรอง ✕
+                          </button>
+                        </div>
+                      )}
+
+                      {filteredSeal.length === 0 ? (
+                        <div className={`rounded-3xl backdrop-blur-xl border p-10 text-center space-y-3 ${cardBg}`}>
+                          <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">
+                            <Inbox className="w-7 h-7" />
+                          </div>
+                          <h4 className="font-bold text-slate-700 font-display">ไม่พบประวัติ Seal Temp ตามเงื่อนไขที่เลือก</h4>
+                          <p className="text-xs text-slate-500">ลองปรับตัวกรอง หรือกรอกพารามิเตอร์ในแท็บ "บันทึกข้อมูล"</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {filteredSeal.map((r) => {
+                            const m = MACHINES.find(item => item.name === r.machine) || { id: 1, name: r.machine, color: '#3b82f6' };
+                            const ok = recordOk(r);
+                            return (
+                              <article
+                                key={r.id || Math.random()}
+                                className={`rounded-3xl backdrop-blur-xl border p-4 sm:p-5 space-y-3 transition-all hover:shadow-lg ${cardBg}`}
+                              >
+                                <div className="flex items-start justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span
+                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold text-white shadow-sm font-display"
+                                      style={{ backgroundColor: m.color }}
+                                    >
+                                      <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                                      {m.name}
+                                    </span>
+                                    <span className="px-2.5 py-1 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700">
+                                      กะ {r.shift || '-'} • {r.shiftType === '12h' ? '12 ชม.' : '8 ชม.'}
+                                    </span>
+                                  </div>
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold ${
+                                      ok ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                                    }`}
+                                  >
+                                    {ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+                                    {ok ? 'ผ่านทั้งหมด' : 'มีรายการไม่ผ่าน'}
+                                  </span>
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-slate-500 border-b border-slate-100 pb-2">
+                                  <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                                    <UserCheck className="w-3.5 h-3.5 text-blue-500" />
+                                    <span>{r.operator || '-'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 font-mono">
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span>{formatDDMMYYYY(r.datetime)}</span>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                  <div className="p-2.5 rounded-2xl bg-slate-50/90 border border-slate-200/60">
+                                    <span className="text-[10px] text-slate-400 block">ความเร็ว</span>
+                                    <span className="font-mono font-bold text-sm text-slate-800">
+                                      {r.speed ?? '-'} <span className="text-[10px] font-sans font-normal text-slate-400">bag/m</span>
+                                    </span>
+                                  </div>
+                                  <div className="p-2.5 rounded-2xl bg-slate-50/90 border border-slate-200/60">
+                                    <span className="text-[10px] text-slate-400 block">{m.id <= 2 ? 'ซีลบน' : 'ซีลหน้า'}</span>
+                                    <span className={`font-mono font-bold text-sm ${r.tfStatus === 'fail' ? 'text-rose-600' : 'text-slate-800'}`}>
+                                      {r.tempFront ?? '-'} <span className="text-[10px] font-sans font-normal text-slate-400">°C</span>
+                                    </span>
+                                  </div>
+                                  <div className="p-2.5 rounded-2xl bg-slate-50/90 border border-slate-200/60">
+                                    <span className="text-[10px] text-slate-400 block">{m.id <= 2 ? 'ซีลล่าง' : 'ซีลหลัง'}</span>
+                                    <span className={`font-mono font-bold text-sm ${r.tbStatus === 'fail' ? 'text-rose-600' : 'text-slate-800'}`}>
+                                      {r.tempBack ?? '-'} <span className="text-[10px] font-sans font-normal text-slate-400">°C</span>
+                                    </span>
+                                  </div>
+                                  <div className="p-2.5 rounded-2xl bg-slate-50/90 border border-slate-200/60">
+                                    <span className="text-[10px] text-slate-400 block">ซีลกลาง</span>
+                                    <span className={`font-mono font-bold text-sm ${r.tmStatus === 'fail' ? 'text-rose-600' : 'text-slate-800'}`}>
+                                      {r.tempMid ?? '-'} <span className="text-[10px] font-sans font-normal text-slate-400">°C</span>
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px] bg-slate-50/80 p-2 rounded-2xl border border-slate-200/70">
+                                  <div className="flex items-center justify-between bg-white px-2 py-1.5 rounded-xl border border-slate-100">
+                                    <span className="font-bold text-slate-700">🏷️ Lot No.</span>
+                                    {renderChecklistBadge(r.lot)}
+                                  </div>
+                                  <div className="flex items-center justify-between bg-white px-2 py-1.5 rounded-xl border border-slate-100">
+                                    <span className="font-bold text-slate-700">🛠️ เทปล่อน</span>
+                                    {renderChecklistBadge(r.teflon)}
+                                  </div>
+                                  <div className="flex items-center justify-between bg-white px-2 py-1.5 rounded-xl border border-slate-100">
+                                    <span className="font-bold text-slate-700">📦 Seal (บน)</span>
+                                    {renderChecklistBadge(r.packSealTop)}
+                                  </div>
+                                  <div className="flex items-center justify-between bg-white px-2 py-1.5 rounded-xl border border-slate-100">
+                                    <span className="font-bold text-slate-700">📦 Seal (กลาง)</span>
+                                    {renderChecklistBadge(r.packSealMid)}
+                                  </div>
+                                  <div className="flex items-center justify-between bg-white px-2 py-1.5 rounded-xl border border-slate-100">
+                                    <span className="font-bold text-slate-700">📦 Seal (ล่าง)</span>
+                                    {renderChecklistBadge(r.packSealBot)}
+                                  </div>
+                                  <div className="flex items-center justify-between bg-white px-2 py-1.5 rounded-xl border border-slate-100">
+                                    <span className="font-bold text-slate-700">🎯 รูเข็ม</span>
+                                    {renderChecklistBadge(r.hole)}
+                                  </div>
+                                </div>
+
+                                {r.notes && (
+                                  <div className="px-3.5 py-2.5 rounded-2xl bg-blue-50/75 border border-blue-100 text-xs text-slate-600 flex items-start gap-2">
+                                    <MessageSquare className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+                                    <span>{r.notes}</span>
+                                  </div>
+                                )}
+                              </article>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
+                    );
+                  })()}
+
+                  {formSubTab === 'form' && (
+                    <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* Card 1: Shift & Operator & Machine Selector */}
+              <div className={`rounded-3xl backdrop-blur-xl border p-5 sm:p-6 flex flex-col gap-5 ${cardBg}`}>
+                {/* Section Header */}
+                <div className="flex items-center gap-2.5 pb-3 border-b border-slate-200/70">
+                  <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0">
+                    <UserCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold tracking-wider uppercase text-blue-600 font-display">
+                      SHIFT & OPERATOR SELECTION
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium">เลือกเครื่องจักร กะการทำงาน และผู้ตรวจสอบ</p>
+                  </div>
+                </div>
+
+                {/* Machine Selection Cards */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-700">
+                    <Cpu className="w-4 h-4 text-slate-400" />
+                    <span>เลือกเครื่องจักร (Machine)</span>
+                    <span className="text-rose-500">*</span>
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2">
                     {MACHINES.map(m => {
                       const isSelected = selectedMachine === m.id;
                       return (
@@ -1308,37 +1708,48 @@ export default function App() {
                           key={m.id}
                           type="button"
                           onClick={() => setSelectedMachine(m.id)}
-                          style={{
-                            borderColor: isSelected ? m.color : undefined,
-                            backgroundColor: isSelected ? `${m.color}15` : undefined,
-                            color: isSelected ? m.color : undefined
-                          }}
-                          className={`group relative flex items-center justify-center p-2.5 rounded-xl border text-center transition-all overflow-hidden ${isSelected ? 'shadow-md ring-2 ring-offset-1 scale-[1.02] font-black' : 'border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-white text-slate-800'}`}
+                          style={isSelected ? {
+                            borderColor: m.color,
+                            color: m.color,
+                            backgroundColor: `${m.color}18`,
+                            boxShadow: `0 0 0 2px ${m.color}38, 0 6px 14px -4px ${m.color}55`
+                          } : undefined}
+                          className={`relative overflow-hidden py-2.5 px-2 rounded-2xl font-bold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-1.5 border active:scale-95 ${
+                            isSelected
+                              ? 'scale-[1.02]'
+                              : 'bg-slate-50/90 border-slate-200/80 text-slate-700 hover:bg-white hover:border-slate-300'
+                          }`}
                         >
-                          <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: m.color }}></div>
-                          <div className="text-xs font-black font-display tracking-tight">No.{m.id}</div>
+                          <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full transition-all" style={{ backgroundColor: m.color }}></span>
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: m.color }}></span>
+                          <span className="font-display">No.{m.id}</span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Shift Selector: Larger, Color-Coded A, B, C */}
-                <div className="space-y-1.5">
-                  <label className={`text-xs font-black flex items-center gap-1.5 ${textMuted}`}>
-                    <Clock className="w-3.5 h-3.5 text-blue-600" /> กะการทำงาน (Shift)
+                {/* Shift Segmented Control */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-700">
+                    <Clock className="w-4 h-4 text-slate-400" />
+                    <span>กะการทำงาน (Shift)</span>
                   </label>
-                  <div className="grid grid-cols-3 gap-1.5 p-1 border rounded-xl bg-slate-100 border-slate-300">
+                  <div className="p-1.5 rounded-2xl bg-slate-100/90 border border-slate-200/70 grid grid-cols-3 gap-1.5">
                     {[
-                      { key: 'A', label: 'กะ A', color: 'from-blue-600 to-indigo-600' },
-                      { key: 'B', label: 'กะ B', color: 'from-amber-500 to-orange-600' },
-                      { key: 'C', label: 'กะ C', color: 'from-emerald-600 to-teal-600' }
+                      { key: 'A', label: 'กะ A', gradient: 'from-blue-600 to-indigo-600 shadow-blue-500/25' },
+                      { key: 'B', label: 'กะ B', gradient: 'from-amber-500 to-orange-600 shadow-amber-500/25' },
+                      { key: 'C', label: 'กะ C', gradient: 'from-emerald-600 to-teal-600 shadow-emerald-500/25' }
                     ].map(sh => (
                       <button
                         key={sh.key}
                         type="button"
                         onClick={() => setShift(sh.key)}
-                        className={`py-2 rounded-lg text-xs md:text-sm font-black font-display transition-all shadow-sm ${shift === sh.key ? `bg-gradient-to-r ${sh.color} text-white ring-2 ring-offset-1 ring-blue-400 scale-105` : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-300'}`}
+                        className={`py-2 rounded-xl text-xs sm:text-sm font-semibold font-display transition-all duration-200 ${
+                          shift === sh.key
+                            ? `bg-gradient-to-r ${sh.gradient} text-white shadow-md`
+                            : 'text-slate-600 hover:bg-white/70'
+                        }`}
                       >
                         {sh.label}
                       </button>
@@ -1346,36 +1757,56 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Shift Hours Type Selector (Side-by-side separate colors) */}
-                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setShiftType('8h')}
-                    className={`py-1.5 px-2 rounded-lg text-[11px] font-bold font-display transition-all shadow-xs ${shiftType === '8h' ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white ring-1 ring-blue-400 scale-[1.01]' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-300'}`}
-                  >
-                    🛡️ กะ 8 ชม. (จ-พฤ)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShiftType('12h')}
-                    className={`py-1.5 px-2 rounded-lg text-[11px] font-bold font-display transition-all shadow-xs ${shiftType === '12h' ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white ring-1 ring-purple-400 scale-[1.01]' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-300'}`}
-                  >
-                    ⭐ กะ 12 ชม. (ศ-อา)
-                  </button>
+                {/* Shift Duration Toggle */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-700">
+                    <CalendarClock className="w-4 h-4 text-slate-400" />
+                    <span>ระยะเวลากะ (Duration)</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShiftType('8h')}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-2xl text-xs font-semibold border transition-all duration-200 active:scale-[0.98] font-display ${
+                        shiftType === '8h'
+                          ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-transparent shadow-md shadow-blue-500/25'
+                          : 'bg-slate-50/90 text-slate-600 border-slate-200 hover:bg-white'
+                      }`}
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                      <span>กะ 8 ชม. (จ-พฤ)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShiftType('12h')}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 px-2.5 rounded-2xl text-xs font-semibold border transition-all duration-200 active:scale-[0.98] font-display ${
+                        shiftType === '12h'
+                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white border-transparent shadow-md shadow-purple-500/25'
+                          : 'bg-slate-50/90 text-slate-600 border-slate-200 hover:bg-white'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                      <span>กะ 12 ชม. (ศ-อา)</span>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Inspector Selector (Compact Dropdown) */}
-                <div className="space-y-1.5">
-                  <label className={`text-xs font-black flex items-center gap-1.5 ${textMuted}`}>
-                    <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> ผู้ตรวจสอบ (Operator) <span className="text-rose-600">*</span>
+                {/* Operator Select Dropdown */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-700">
+                    <Shield className="w-4 h-4 text-slate-400" />
+                    <span>ผู้ตรวจสอบ (Operator)</span>
+                    <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
-                    <UserCheck className="absolute left-3.5 top-3 w-4 h-4 text-blue-600 pointer-events-none" />
+                    <div className="pointer-events-none absolute inset-y-0 left-0 pl-3.5 flex items-center text-blue-600">
+                      <UserCheck className="w-4 h-4" />
+                    </div>
                     <select
                       value={operator}
                       onChange={e => setOperator(e.target.value)}
                       required
-                      className={`w-full border rounded-xl py-2.5 pl-10 pr-3 text-xs md:text-sm font-black ${inputBg}`}
+                      className={`w-full appearance-none border rounded-2xl py-3 pl-10 pr-9 text-xs sm:text-sm font-semibold transition-all cursor-pointer focus:outline-none ${inputBg}`}
                     >
                       <option value="">-- กรุณาเลือกรายชื่อผู้ตรวจสอบ --</option>
                       {INSPECTORS.map(ins => (
@@ -1384,29 +1815,87 @@ export default function App() {
                         </option>
                       ))}
                     </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400">
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
                   </div>
                 </div>
 
-                {/* Speed input */}
-                <div className="space-y-1.5">
-                  <label className={`text-xs font-black flex items-center gap-1.5 ${textMuted}`}>
-                    <Gauge className="w-3.5 h-3.5 text-blue-600" /> ความเร็วบรรจุ Speed (bag/min) <span className="text-rose-600">*</span>
-                  </label>
-                  <div className="relative">
-                    <Gauge className="absolute left-3.5 top-3 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={speed}
-                      onChange={e => setSpeed(e.target.value)}
-                      placeholder="ระบุตัวเลขความเร็ว"
-                      required
-                      className={`w-full border rounded-xl py-2.5 pl-10 pr-3 text-sm font-black focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-mono ${inputBg}`}
-                    />
+                {/* Speed Input with +/- Stepper & Live Badge */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <label className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700">
+                      <Zap className="w-4 h-4 text-amber-500" />
+                      <span>ความเร็ว Speed (bag/min)</span>
+                      <span className="text-rose-500">*</span>
+                    </label>
+                    {(() => {
+                      const spd = parseFloat(speed);
+                      const setTarget = customSpeedSpecs[selectedMachine]?.set ?? 45;
+                      if (!speed.trim() || isNaN(spd) || spd <= 0) {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-200/80 text-slate-600">
+                            รอระบุค่า
+                          </span>
+                        );
+                      }
+                      if (spd >= setTarget * 0.9) {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700">
+                            <CheckCircle2 className="w-3 h-3" /> ปกติ
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-700">
+                          ต่ำกว่า Set ({setTarget})
+                        </span>
+                      );
+                    })()}
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5 pt-1 text-[10px] text-slate-500 font-mono font-bold">
-                    <div className="flex items-center gap-1 bg-white/90 border border-slate-300 rounded-lg px-2 py-1 shadow-xs">
-                      <span className="text-slate-500 font-black">Std.:</span>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      aria-label="ลดความเร็ว"
+                      onClick={() => {
+                        const curr = parseFloat(speed) || (customSpeedSpecs[selectedMachine]?.set ?? 30);
+                        setSpeed(String(Math.max(0, Number((curr - 1).toFixed(1)))));
+                      }}
+                      className="w-11 h-11 shrink-0 rounded-2xl bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-all"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={speed}
+                        onChange={e => setSpeed(e.target.value)}
+                        placeholder="เช่น 50"
+                        required
+                        className={`w-full h-11 px-3 pr-16 rounded-2xl border font-mono text-base font-bold text-center focus:outline-none transition-all ${inputBg}`}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[10px] font-semibold text-slate-400">
+                        bag/min
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="เพิ่มความเร็ว"
+                      onClick={() => {
+                        const curr = parseFloat(speed) || (customSpeedSpecs[selectedMachine]?.set ?? 30);
+                        setSpeed(String(Math.min(150, Number((curr + 1).toFixed(1)))));
+                      }}
+                      className="w-11 h-11 shrink-0 rounded-2xl bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-all"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-0.5 text-[11px] text-slate-500 font-mono font-bold">
+                    <div className="flex items-center gap-1 bg-slate-50/90 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
+                      <span className="text-slate-500 font-semibold">Std.:</span>
                       <input
                         type="number"
                         step="0.01"
@@ -1418,11 +1907,11 @@ export default function App() {
                             [selectedMachine]: { ...(prev[selectedMachine] || { std: 34.67, set: 45.00 }), std: val }
                           }));
                         }}
-                        className="w-full text-right font-mono font-black text-slate-900 bg-transparent focus:outline-none text-[11px]"
+                        className="w-full text-right font-mono font-bold text-slate-900 bg-transparent focus:outline-none text-xs"
                       />
                     </div>
-                    <div className="flex items-center gap-1 bg-white/90 border border-slate-300 rounded-lg px-2 py-1 shadow-xs">
-                      <span className="text-slate-500 font-black">Set:</span>
+                    <div className="flex items-center gap-1 bg-slate-50/90 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
+                      <span className="text-slate-500 font-semibold">Set:</span>
                       <input
                         type="number"
                         step="0.01"
@@ -1434,30 +1923,37 @@ export default function App() {
                             [selectedMachine]: { ...(prev[selectedMachine] || { std: 34.67, set: 45.00 }), set: val }
                           }));
                         }}
-                        className="w-full text-right font-mono font-black text-slate-900 bg-transparent focus:outline-none text-[11px]"
+                        className="w-full text-right font-mono font-bold text-slate-900 bg-transparent focus:outline-none text-xs"
                       />
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Card 2: Thermal & Time Parameters */}
-              <div className={`lg:col-span-2 backdrop-blur-xl border rounded-2xl p-3 flex flex-col gap-2.5 ${cardBg}`}>
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-black text-blue-600 uppercase tracking-wider flex items-center gap-1.5 font-display">
-                    <Thermometer className="w-4 h-4 text-amber-500" /> TEMP. & Time Parameters
+              {/* Card 2: Thermal, Time & QC Parameters */}
+              <div className={`lg:col-span-2 rounded-3xl backdrop-blur-xl border p-5 sm:p-6 flex flex-col gap-5 ${cardBg}`}>
+                {/* Section Header */}
+                <div className="flex items-center gap-2.5 pb-3 border-b border-slate-200/70">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center shrink-0">
+                    <Gauge className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold tracking-wider uppercase text-indigo-600 font-display">
+                      TEMP. & TIME PARAMETERS
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium">ค่าความร้อนซีล เวลาแช่ และตรวจสอบคุณภาพแพ็คเกจ</p>
                   </div>
                 </div>
 
                 {selectedMachine === 1 && (
-                  <div className={`border p-3 rounded-xl ${subCardBg}`}>
-                    <label className="text-xs font-black text-blue-700 block mb-1.5 flex items-center gap-1.5">
+                  <div className={`border p-3.5 rounded-2xl ${subCardBg}`}>
+                    <label className="text-xs font-bold text-blue-700 block mb-1.5 flex items-center gap-1.5">
                       <Cpu className="w-3.5 h-3.5 text-blue-600" /> เลือกลักษณะสเปคอุณหภูมิ No.1
                     </label>
                     <select
                       value={no1Group}
                       onChange={e => setNo1Group(e.target.value as any)}
-                      className={`w-full border rounded-lg py-2 px-3 text-xs font-black ${inputBg}`}
+                      className={`w-full border rounded-xl py-2.5 px-3 text-xs font-bold ${inputBg}`}
                     >
                       <option value="group1">กลุ่ม 1 (มาตรฐาน: 175-210 / 175-210)</option>
                       <option value="group2">กลุ่ม 2 (ความร้อนสูง: 170-190 / 170-185)</option>
@@ -1465,27 +1961,30 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                   {/* Front/Top Temp */}
-                  <div className={`border p-3.5 rounded-2xl flex flex-col gap-2 ${subCardBg}`}>
-                    <div className="flex items-center justify-between text-xs font-black text-slate-900">
-                      <span className="flex items-center gap-1"><Thermometer className="w-3.5 h-3.5 text-rose-500" /> {selectedMachine === 1 || selectedMachine === 2 ? 'ซีลบน (°C)' : 'ซีลหน้า (°C)'} <span className="text-rose-600">*</span></span>
-                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${tfStatus === 'pass' ? 'bg-emerald-500/20 text-emerald-800 font-black' : tfStatus === 'fail' ? 'bg-rose-500/20 text-rose-800 font-black' : 'bg-slate-200 text-slate-700'}`}>
-                        {tfStatus === 'pass' ? `✔ ปกติ` : tfStatus === 'fail' ? `✘ หลุด` : '—'}
+                  <div className={`border p-3.5 rounded-2xl flex flex-col gap-2.5 ${subCardBg}`}>
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                      <span className="flex items-center gap-1.5"><Thermometer className="w-4 h-4 text-rose-500" /> {selectedMachine === 1 || selectedMachine === 2 ? 'ซีลบน' : 'ซีลหน้า'} <span className="text-rose-500">*</span></span>
+                      <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${tfStatus === 'pass' ? 'bg-emerald-100 text-emerald-700' : tfStatus === 'fail' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200/80 text-slate-600'}`}>
+                        {tfStatus === 'pass' ? `✔ ปกติ` : tfStatus === 'fail' ? `✘ หลุด` : 'รอระบุ'}
                       </span>
                     </div>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={tempFront}
-                      onChange={e => setTempFront(e.target.value)}
-                      placeholder="ป้อนค่าอุณหภูมิ"
-                      required
-                      className={`w-full border rounded-xl py-2 px-3 text-sm font-black font-mono focus:outline-none ${inputBg}`}
-                    />
-                    <div className="grid grid-cols-2 gap-1.5 pt-1 text-[10px] text-slate-500 font-mono font-bold">
-                      <div className="flex items-center gap-1 bg-white/90 border border-slate-300 rounded-lg px-2 py-1 shadow-xs">
-                        <span className="text-slate-500 font-black">Min:</span>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={tempFront}
+                        onChange={e => setTempFront(e.target.value)}
+                        placeholder="เช่น 185"
+                        required
+                        className={`w-full border rounded-2xl h-11 pl-3.5 pr-10 text-base font-bold font-mono focus:outline-none transition-all ${inputBg}`}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-xs font-semibold text-slate-400">°C</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[10px] text-slate-500 font-mono font-bold">
+                      <div className="flex items-center gap-1 bg-white/90 border border-slate-200 rounded-xl px-2.5 py-1">
+                        <span className="text-slate-400 font-semibold">Min:</span>
                         <input
                           type="number"
                           value={limits.tempFront[0]}
@@ -1493,11 +1992,11 @@ export default function App() {
                             const val = parseFloat(e.target.value) || 0;
                             setLimits(prev => ({ ...prev, tempFront: [val, prev.tempFront[1]] }));
                           }}
-                          className="w-full text-right font-mono font-black text-slate-900 bg-transparent focus:outline-none text-[11px]"
+                          className="w-full text-right font-mono font-bold text-slate-800 bg-transparent focus:outline-none text-[11px]"
                         />
                       </div>
-                      <div className="flex items-center gap-1 bg-white/90 border border-slate-300 rounded-lg px-2 py-1 shadow-xs">
-                        <span className="text-slate-500 font-black">Max:</span>
+                      <div className="flex items-center gap-1 bg-white/90 border border-slate-200 rounded-xl px-2.5 py-1">
+                        <span className="text-slate-400 font-semibold">Max:</span>
                         <input
                           type="number"
                           value={limits.tempFront[1]}
@@ -1505,32 +2004,35 @@ export default function App() {
                             const val = parseFloat(e.target.value) || 0;
                             setLimits(prev => ({ ...prev, tempFront: [prev.tempFront[0], val] }));
                           }}
-                          className="w-full text-right font-mono font-black text-slate-900 bg-transparent focus:outline-none text-[11px]"
+                          className="w-full text-right font-mono font-bold text-slate-800 bg-transparent focus:outline-none text-[11px]"
                         />
                       </div>
                     </div>
                   </div>
 
                   {/* Back/Bot Temp */}
-                  <div className={`border p-3.5 rounded-2xl flex flex-col gap-2 ${subCardBg}`}>
-                    <div className="flex items-center justify-between text-xs font-black text-slate-900">
-                      <span className="flex items-center gap-1"><Thermometer className="w-3.5 h-3.5 text-blue-500" /> {selectedMachine === 1 || selectedMachine === 2 ? 'ซีลล่าง (°C)' : 'ซีลหลัง (°C)'} <span className="text-rose-600">*</span></span>
-                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${tbStatus === 'pass' ? 'bg-emerald-500/20 text-emerald-800 font-black' : tbStatus === 'fail' ? 'bg-rose-500/20 text-rose-800 font-black' : 'bg-slate-200 text-slate-700'}`}>
-                        {tbStatus === 'pass' ? `✔ ปกติ` : tbStatus === 'fail' ? `✘ หลุด` : '—'}
+                  <div className={`border p-3.5 rounded-2xl flex flex-col gap-2.5 ${subCardBg}`}>
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                      <span className="flex items-center gap-1.5"><Flame className="w-4 h-4 text-orange-500" /> {selectedMachine === 1 || selectedMachine === 2 ? 'ซีลล่าง' : 'ซีลหลัง'} <span className="text-rose-500">*</span></span>
+                      <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${tbStatus === 'pass' ? 'bg-emerald-100 text-emerald-700' : tbStatus === 'fail' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200/80 text-slate-600'}`}>
+                        {tbStatus === 'pass' ? `✔ ปกติ` : tbStatus === 'fail' ? `✘ หลุด` : 'รอระบุ'}
                       </span>
                     </div>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={tempBack}
-                      onChange={e => setTempBack(e.target.value)}
-                      placeholder="ป้อนค่าอุณหภูมิ"
-                      required
-                      className={`w-full border rounded-xl py-2 px-3 text-sm font-black font-mono focus:outline-none ${inputBg}`}
-                    />
-                    <div className="grid grid-cols-2 gap-1.5 pt-1 text-[10px] text-slate-500 font-mono font-bold">
-                      <div className="flex items-center gap-1 bg-white/90 border border-slate-300 rounded-lg px-2 py-1 shadow-xs">
-                        <span className="text-slate-500 font-black">Min:</span>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={tempBack}
+                        onChange={e => setTempBack(e.target.value)}
+                        placeholder="เช่น 185"
+                        required
+                        className={`w-full border rounded-2xl h-11 pl-3.5 pr-10 text-base font-bold font-mono focus:outline-none transition-all ${inputBg}`}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-xs font-semibold text-slate-400">°C</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[10px] text-slate-500 font-mono font-bold">
+                      <div className="flex items-center gap-1 bg-white/90 border border-slate-200 rounded-xl px-2.5 py-1">
+                        <span className="text-slate-400 font-semibold">Min:</span>
                         <input
                           type="number"
                           value={limits.tempBack[0]}
@@ -1538,11 +2040,11 @@ export default function App() {
                             const val = parseFloat(e.target.value) || 0;
                             setLimits(prev => ({ ...prev, tempBack: [val, prev.tempBack[1]] }));
                           }}
-                          className="w-full text-right font-mono font-black text-slate-900 bg-transparent focus:outline-none text-[11px]"
+                          className="w-full text-right font-mono font-bold text-slate-800 bg-transparent focus:outline-none text-[11px]"
                         />
                       </div>
-                      <div className="flex items-center gap-1 bg-white/90 border border-slate-300 rounded-lg px-2 py-1 shadow-xs">
-                        <span className="text-slate-500 font-black">Max:</span>
+                      <div className="flex items-center gap-1 bg-white/90 border border-slate-200 rounded-xl px-2.5 py-1">
+                        <span className="text-slate-400 font-semibold">Max:</span>
                         <input
                           type="number"
                           value={limits.tempBack[1]}
@@ -1550,32 +2052,35 @@ export default function App() {
                             const val = parseFloat(e.target.value) || 0;
                             setLimits(prev => ({ ...prev, tempBack: [prev.tempBack[0], val] }));
                           }}
-                          className="w-full text-right font-mono font-black text-slate-900 bg-transparent focus:outline-none text-[11px]"
+                          className="w-full text-right font-mono font-bold text-slate-800 bg-transparent focus:outline-none text-[11px]"
                         />
                       </div>
                     </div>
                   </div>
 
                   {/* Mid Temp */}
-                  <div className={`border p-3.5 rounded-2xl flex flex-col gap-2 ${subCardBg}`}>
-                    <div className="flex items-center justify-between text-xs font-black text-slate-900">
-                      <span className="flex items-center gap-1"><Thermometer className="w-3.5 h-3.5 text-emerald-500" /> ซีลกลาง (°C) <span className="text-rose-600">*</span></span>
-                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${tmStatus === 'pass' ? 'bg-emerald-500/20 text-emerald-800 font-black' : tmStatus === 'fail' ? 'bg-rose-500/20 text-rose-800 font-black' : 'bg-slate-200 text-slate-700'}`}>
-                        {tmStatus === 'pass' ? `✔ ปกติ` : tmStatus === 'fail' ? `✘ หลุด` : '—'}
+                  <div className={`border p-3.5 rounded-2xl flex flex-col gap-2.5 ${subCardBg}`}>
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                      <span className="flex items-center gap-1.5"><Thermometer className="w-4 h-4 text-emerald-500" /> ซีลกลาง <span className="text-rose-500">*</span></span>
+                      <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${tmStatus === 'pass' ? 'bg-emerald-100 text-emerald-700' : tmStatus === 'fail' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200/80 text-slate-600'}`}>
+                        {tmStatus === 'pass' ? `✔ ปกติ` : tmStatus === 'fail' ? `✘ หลุด` : 'รอระบุ'}
                       </span>
                     </div>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={tempMid}
-                      onChange={e => setTempMid(e.target.value)}
-                      placeholder="ป้อนค่าอุณหภูมิ"
-                      required
-                      className={`w-full border rounded-xl py-2 px-3 text-sm font-black font-mono focus:outline-none ${inputBg}`}
-                    />
-                    <div className="grid grid-cols-2 gap-1.5 pt-1 text-[10px] text-slate-500 font-mono font-bold">
-                      <div className="flex items-center gap-1 bg-white/90 border border-slate-300 rounded-lg px-2 py-1 shadow-xs">
-                        <span className="text-slate-500 font-black">Min:</span>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={tempMid}
+                        onChange={e => setTempMid(e.target.value)}
+                        placeholder="เช่น 180"
+                        required
+                        className={`w-full border rounded-2xl h-11 pl-3.5 pr-10 text-base font-bold font-mono focus:outline-none transition-all ${inputBg}`}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-xs font-semibold text-slate-400">°C</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[10px] text-slate-500 font-mono font-bold">
+                      <div className="flex items-center gap-1 bg-white/90 border border-slate-200 rounded-xl px-2.5 py-1">
+                        <span className="text-slate-400 font-semibold">Min:</span>
                         <input
                           type="number"
                           value={limits.tempMid[0]}
@@ -1583,11 +2088,11 @@ export default function App() {
                             const val = parseFloat(e.target.value) || 0;
                             setLimits(prev => ({ ...prev, tempMid: [val, prev.tempMid[1]] }));
                           }}
-                          className="w-full text-right font-mono font-black text-slate-900 bg-transparent focus:outline-none text-[11px]"
+                          className="w-full text-right font-mono font-bold text-slate-800 bg-transparent focus:outline-none text-[11px]"
                         />
                       </div>
-                      <div className="flex items-center gap-1 bg-white/90 border border-slate-300 rounded-lg px-2 py-1 shadow-xs">
-                        <span className="text-slate-500 font-black">Max:</span>
+                      <div className="flex items-center gap-1 bg-white/90 border border-slate-200 rounded-xl px-2.5 py-1">
+                        <span className="text-slate-400 font-semibold">Max:</span>
                         <input
                           type="number"
                           value={limits.tempMid[1]}
@@ -1595,7 +2100,7 @@ export default function App() {
                             const val = parseFloat(e.target.value) || 0;
                             setLimits(prev => ({ ...prev, tempMid: [prev.tempMid[0], val] }));
                           }}
-                          className="w-full text-right font-mono font-black text-slate-900 bg-transparent focus:outline-none text-[11px]"
+                          className="w-full text-right font-mono font-bold text-slate-800 bg-transparent focus:outline-none text-[11px]"
                         />
                       </div>
                     </div>
@@ -1603,24 +2108,27 @@ export default function App() {
 
                   {/* Dwell Time Front/Back (Machines 3-7) */}
                   {selectedMachine > 2 && (
-                    <div className={`border p-3.5 rounded-2xl flex flex-col gap-2 ${subCardBg}`}>
-                      <div className="flex items-center justify-between text-xs font-black text-slate-900">
-                        <span className="flex items-center gap-1"><Gauge className="w-3.5 h-3.5 text-blue-600" /> แช่จอหน้า-หลัง (ms) <span className="text-rose-600">*</span></span>
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${timeFbStatus === 'pass' ? 'bg-emerald-500/20 text-emerald-800 font-black' : timeFbStatus === 'fail' ? 'bg-rose-500/20 text-rose-800 font-black' : 'bg-slate-200 text-slate-700'}`}>
-                          {timeFbStatus === 'pass' ? '✔ ปกติ' : timeFbStatus === 'fail' ? '✘ หลุด' : '—'}
+                    <div className={`border p-3.5 rounded-2xl flex flex-col gap-2.5 ${subCardBg}`}>
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                        <span className="flex items-center gap-1.5"><Gauge className="w-4 h-4 text-blue-600" /> แช่จอหน้า-หลัง <span className="text-rose-500">*</span></span>
+                        <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${timeFbStatus === 'pass' ? 'bg-emerald-100 text-emerald-700' : timeFbStatus === 'fail' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200/80 text-slate-600'}`}>
+                          {timeFbStatus === 'pass' ? '✔ ปกติ' : timeFbStatus === 'fail' ? '✘ หลุด' : 'รอระบุ'}
                         </span>
                       </div>
-                      <input
-                        type="text"
-                        value={timeFrontBack}
-                        onChange={e => setTimeFrontBack(e.target.value)}
-                        placeholder="เช่น 120-360"
-                        required
-                        className={`w-full border rounded-xl py-2 px-3 text-sm font-black font-mono focus:outline-none ${inputBg}`}
-                      />
-                      <div className="grid grid-cols-2 gap-1.5 pt-1 text-[10px] text-slate-500 font-mono font-bold">
-                        <div className="flex items-center gap-1 bg-white/90 border border-slate-300 rounded-lg px-2 py-1 shadow-xs">
-                          <span className="text-slate-500 font-black">Min:</span>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={timeFrontBack}
+                          onChange={e => setTimeFrontBack(e.target.value)}
+                          placeholder="เช่น 120-360"
+                          required
+                          className={`w-full border rounded-2xl h-11 pl-3.5 pr-10 text-base font-bold font-mono focus:outline-none transition-all ${inputBg}`}
+                        />
+                        <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-xs font-semibold text-slate-400">ms</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 text-[10px] text-slate-500 font-mono font-bold">
+                        <div className="flex items-center gap-1 bg-white/90 border border-slate-200 rounded-xl px-2.5 py-1">
+                          <span className="text-slate-400 font-semibold">Min:</span>
                           <input
                             type="number"
                             value={limits.timeFrontBack?.[0] || 0}
@@ -1628,11 +2136,11 @@ export default function App() {
                               const val = parseFloat(e.target.value) || 0;
                               setLimits(prev => ({ ...prev, timeFrontBack: [val, prev.timeFrontBack?.[1] || 0] }));
                             }}
-                            className="w-full text-right font-mono font-black text-slate-900 bg-transparent focus:outline-none text-[11px]"
+                            className="w-full text-right font-mono font-bold text-slate-800 bg-transparent focus:outline-none text-[11px]"
                           />
                         </div>
-                        <div className="flex items-center gap-1 bg-white/90 border border-slate-300 rounded-lg px-2 py-1 shadow-xs">
-                          <span className="text-slate-500 font-black">Max:</span>
+                        <div className="flex items-center gap-1 bg-white/90 border border-slate-200 rounded-xl px-2.5 py-1">
+                          <span className="text-slate-400 font-semibold">Max:</span>
                           <input
                             type="number"
                             value={limits.timeFrontBack?.[1] || 0}
@@ -1640,7 +2148,7 @@ export default function App() {
                               const val = parseFloat(e.target.value) || 0;
                               setLimits(prev => ({ ...prev, timeFrontBack: [prev.timeFrontBack?.[0] || 0, val] }));
                             }}
-                            className="w-full text-right font-mono font-black text-slate-900 bg-transparent focus:outline-none text-[11px]"
+                            className="w-full text-right font-mono font-bold text-slate-800 bg-transparent focus:outline-none text-[11px]"
                           />
                         </div>
                       </div>
@@ -1649,24 +2157,27 @@ export default function App() {
 
                   {/* Dwell Time Mid (Machines 3-7) */}
                   {selectedMachine > 2 && (
-                    <div className={`border p-3.5 rounded-2xl flex flex-col gap-2 ${subCardBg}`}>
-                      <div className="flex items-center justify-between text-xs font-black text-slate-900">
-                        <span className="flex items-center gap-1"><Gauge className="w-3.5 h-3.5 text-blue-600" /> แช่จอกลาง (ms) <span className="text-rose-600">*</span></span>
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${timeMStatus === 'pass' ? 'bg-emerald-500/20 text-emerald-800 font-black' : timeMStatus === 'fail' ? 'bg-rose-500/20 text-rose-800 font-black' : 'bg-slate-200 text-slate-700'}`}>
-                          {timeMStatus === 'pass' ? '✔ ปกติ' : timeMStatus === 'fail' ? '✘ หลุด' : '—'}
+                    <div className={`border p-3.5 rounded-2xl flex flex-col gap-2.5 ${subCardBg}`}>
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                        <span className="flex items-center gap-1.5"><Gauge className="w-4 h-4 text-blue-600" /> แช่จอกลาง <span className="text-rose-500">*</span></span>
+                        <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${timeMStatus === 'pass' ? 'bg-emerald-100 text-emerald-700' : timeMStatus === 'fail' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200/80 text-slate-600'}`}>
+                          {timeMStatus === 'pass' ? '✔ ปกติ' : timeMStatus === 'fail' ? '✘ หลุด' : 'รอระบุ'}
                         </span>
                       </div>
-                      <input
-                        type="text"
-                        value={timeMid}
-                        onChange={e => setTimeMid(e.target.value)}
-                        placeholder="เช่น 120-360"
-                        required
-                        className={`w-full border rounded-xl py-2 px-3 text-sm font-black font-mono focus:outline-none ${inputBg}`}
-                      />
-                      <div className="grid grid-cols-2 gap-1.5 pt-1 text-[10px] text-slate-500 font-mono font-bold">
-                        <div className="flex items-center gap-1 bg-white/90 border border-slate-300 rounded-lg px-2 py-1 shadow-xs">
-                          <span className="text-slate-500 font-black">Min:</span>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={timeMid}
+                          onChange={e => setTimeMid(e.target.value)}
+                          placeholder="เช่น 120-360"
+                          required
+                          className={`w-full border rounded-2xl h-11 pl-3.5 pr-10 text-base font-bold font-mono focus:outline-none transition-all ${inputBg}`}
+                        />
+                        <span className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-xs font-semibold text-slate-400">ms</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 text-[10px] text-slate-500 font-mono font-bold">
+                        <div className="flex items-center gap-1 bg-white/90 border border-slate-200 rounded-xl px-2.5 py-1">
+                          <span className="text-slate-400 font-semibold">Min:</span>
                           <input
                             type="number"
                             value={limits.timeMid?.[0] || 0}
@@ -1674,11 +2185,11 @@ export default function App() {
                               const val = parseFloat(e.target.value) || 0;
                               setLimits(prev => ({ ...prev, timeMid: [val, prev.timeMid?.[1] || 0] }));
                             }}
-                            className="w-full text-right font-mono font-black text-slate-900 bg-transparent focus:outline-none text-[11px]"
+                            className="w-full text-right font-mono font-bold text-slate-800 bg-transparent focus:outline-none text-[11px]"
                           />
                         </div>
-                        <div className="flex items-center gap-1 bg-white/90 border border-slate-300 rounded-lg px-2 py-1 shadow-xs">
-                          <span className="text-slate-500 font-black">Max:</span>
+                        <div className="flex items-center gap-1 bg-white/90 border border-slate-200 rounded-xl px-2.5 py-1">
+                          <span className="text-slate-400 font-semibold">Max:</span>
                           <input
                             type="number"
                             value={limits.timeMid?.[1] || 0}
@@ -1686,7 +2197,7 @@ export default function App() {
                               const val = parseFloat(e.target.value) || 0;
                               setLimits(prev => ({ ...prev, timeMid: [prev.timeMid?.[0] || 0, val] }));
                             }}
-                            className="w-full text-right font-mono font-black text-slate-900 bg-transparent focus:outline-none text-[11px]"
+                            className="w-full text-right font-mono font-bold text-slate-800 bg-transparent focus:outline-none text-[11px]"
                           />
                         </div>
                       </div>
@@ -1695,9 +2206,9 @@ export default function App() {
                 </div>
 
                 {/* QC Checklist */}
-                <div className="mt-1">
-                  <div className="text-xs font-black text-blue-600 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 font-display">
-                    <ListCheck className="w-4 h-4 text-blue-600" /> Quality & Package Verification <span className="text-rose-600">*</span>
+                <div>
+                  <div className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 font-display">
+                    <ListCheck className="w-4 h-4 text-blue-600" /> Quality & Package Verification <span className="text-rose-500">*</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                     {[
@@ -1711,19 +2222,27 @@ export default function App() {
                       const val = (qc as any)[item.key];
                       return (
                         <div key={item.key} className={`border p-3 rounded-2xl flex flex-col gap-2 ${subCardBg}`}>
-                          <span className="text-xs font-black text-slate-900 flex items-center gap-1.5"><CheckSquare className="w-3.5 h-3.5 text-blue-600" /> {item.label} <span className="text-rose-600">*</span></span>
+                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5"><CheckSquare className="w-3.5 h-3.5 text-blue-600" /> {item.label} <span className="text-rose-500">*</span></span>
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
                               onClick={() => setQc({ ...qc, [item.key]: val === 'pass' ? null : 'pass' })}
-                              className={`py-2 px-3 rounded-xl text-xs md:text-sm font-black transition-all shadow-sm ${val === 'pass' ? 'bg-emerald-600 text-white ring-2 ring-offset-1 ring-emerald-400 scale-[1.02]' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'}`}
+                              className={`py-2 px-3 rounded-2xl text-xs font-semibold transition-all border active:scale-[0.98] ${
+                                val === 'pass'
+                                  ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-500/25'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                              }`}
                             >
                               ✔ ผ่าน
                             </button>
                             <button
                               type="button"
                               onClick={() => setQc({ ...qc, [item.key]: val === 'fail' ? null : 'fail' })}
-                              className={`py-2 px-3 rounded-xl text-xs md:text-sm font-black transition-all shadow-sm ${val === 'fail' ? 'bg-rose-600 text-white ring-2 ring-offset-1 ring-rose-400 scale-[1.02]' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'}`}
+                              className={`py-2 px-3 rounded-2xl text-xs font-semibold transition-all border active:scale-[0.98] ${
+                                val === 'fail'
+                                  ? 'bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-500/25'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                              }`}
                             >
                               ✘ ไม่ผ่าน
                             </button>
@@ -1734,22 +2253,20 @@ export default function App() {
                   </div>
                 </div>
 
-
-
                 {/* Notes */}
-                <div>
-                  <label className={`text-xs font-black block mb-1.5 ${textMuted}`}>📝 ข้อสังเกต / อาการผิดปกติ (Notes)</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs sm:text-sm font-semibold text-slate-700 block">📝 หมายเหตุเพิ่มเติม (Notes)</label>
                   <textarea
                     rows={2}
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
-                    placeholder="ใส่รายละเอียดเพิ่มเติมหากพบความผิดปกติ..."
-                    className={`w-full border rounded-xl p-2.5 text-xs font-semibold focus:outline-none ${inputBg}`}
+                    placeholder="ระบุรายละเอียดเพิ่มเติม เช่น เปลี่ยนม้วนฟิล์ม ปรับตั้งค่าอุณหภูมิ หรือปัญหาที่พบ..."
+                    className={`w-full border rounded-2xl p-3.5 text-xs sm:text-sm focus:outline-none transition-all resize-none ${inputBg}`}
                   ></textarea>
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3 pt-1">
+                <div className="flex items-center gap-3 pt-1">
                   <button
                     type="button"
                     onClick={() => {
@@ -1767,33 +2284,49 @@ export default function App() {
                       setNotes('');
                       showToast('ล้างค่าฟอร์มแล้ว');
                     }}
-                    className="px-5 py-2.5 rounded-xl border font-black text-xs flex items-center gap-1.5 transition-all border-slate-300 bg-white hover:bg-slate-100 text-slate-700 shadow-sm"
+                    className="px-5 py-3.5 rounded-2xl border font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shadow-sm active:scale-[0.98]"
                   >
-                    <RotateCcw className="w-3.5 h-3.5 text-slate-600" /> ล้างค่า
+                    <RotateCcw className="w-4 h-4 text-slate-600" /> ล้างข้อมูล
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all ring-2 ring-blue-400/50"
+                    className="flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:brightness-110 text-white font-bold text-xs sm:text-sm shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
                   >
-                    <Save className="w-3.5 h-3.5" /> บันทึกข้อมูล
+                    <Save className="w-4 h-4" /> บันทึก
                   </button>
                 </div>
               </div>
-            </form>
+                    </form>
+                  )}
+                </>
+              );
+            })()}
           </motion.main>
         )}
 
         {/* =========================================================
             VIEW 2: OEE RECORDING VIEW (บันทึก OEE)
            ========================================================= */}
-        {currentView === 'oee' && (
+        {currentView === 'oee' && (() => {
+          const allOeeRecords = records.filter(item => {
+            const r = item as any;
+            return r.recordType === 'oee' ||
+              r.targetKg !== undefined || r.target !== undefined ||
+              r.goodKg !== undefined || r.good !== undefined ||
+              r.actualKg !== undefined || r.actual !== undefined ||
+              r.speed !== undefined || r.speedActual !== undefined ||
+              r['Target'] !== undefined || r['Good'] !== undefined ||
+              r.tempFront === undefined || r.tempFront === null;
+          });
+
+          return (
           <motion.main
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             className="flex-1 p-4 md:p-6"
           >
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div className="max-w-4xl mx-auto space-y-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg md:text-xl font-black flex items-center gap-2 font-display text-slate-900">
@@ -1803,7 +2336,52 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Unified OEE Card Group */}
+              {/* View Switcher Tabs (2 Tabs: บันทึกข้อมูล / ประวัติล่าสุด) */}
+              <div
+                role="tablist"
+                aria-label="มุมมองบันทึก OEE"
+                className={`p-1.5 rounded-2xl backdrop-blur-xl border shadow-glass grid grid-cols-2 gap-1.5 ${cardBg}`}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={oeeSubTab === 'form'}
+                  onClick={() => setOeeSubTab('form')}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 font-display ${
+                    oeeSubTab === 'form'
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                      : 'text-slate-600 hover:bg-slate-100/80'
+                  }`}
+                >
+                  <ClipboardEdit className="w-4 h-4" />
+                  <span>บันทึกข้อมูล</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={oeeSubTab === 'history'}
+                  onClick={() => setOeeSubTab('history')}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 font-display ${
+                    oeeSubTab === 'history'
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                      : 'text-slate-600 hover:bg-slate-100/80'
+                  }`}
+                >
+                  <History className="w-4 h-4" />
+                  <span>ประวัติล่าสุด</span>
+                  <span
+                    className={`px-2 py-0.5 text-xs font-mono font-bold rounded-full transition-colors ${
+                      oeeSubTab === 'history'
+                        ? 'bg-white/25 text-white'
+                        : 'bg-slate-200/90 text-slate-700'
+                    }`}
+                  >
+                    {allOeeRecords.length}
+                  </span>
+                </button>
+              </div>
+
+              {oeeSubTab === 'form' && (
               <form onSubmit={handleOeeSubmit} className={`backdrop-blur-xl border rounded-3xl p-6 shadow-2xl space-y-6 ${cardBg}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -1890,7 +2468,11 @@ export default function App() {
                   <input
                     type="date"
                     value={reportDate}
-                    onChange={e => setReportDate(e.target.value)}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setReportDate(val);
+                      if (val) setShiftType(getDefaultShiftTypeByDate(val));
+                    }}
                     required
                     className={`w-full border rounded-xl py-3 px-3 text-sm font-black font-mono ${inputBg}`}
                   />
@@ -2100,9 +2682,233 @@ export default function App() {
                   </button>
                 </div>
               </form>
+              )}
+
+              {oeeSubTab === 'history' && (() => {
+                const oeeList = allOeeRecords.filter(item => {
+                  const r = item as any;
+                  const machineName = r.machine ?? r['เครื่องจักร'] ?? 'เครื่องบรรจุ 1Kg No.1';
+                  const shiftVal = r.shift ?? 'A';
+                  const operatorVal = r.operator ?? r['ชื่อผู้บันทึก'] ?? '-';
+                  const reportDateVal = r.reportDate ?? r['ข้อมูลวันที่'] ?? r.datetime ?? '';
+
+                  if (oeeFilterDate && !matchesDateFilter(reportDateVal, oeeFilterDate)) return false;
+                  if (oeeFilterMachine !== 'all' && machineName !== oeeFilterMachine) return false;
+                  if (oeeFilterShift !== 'all' && shiftVal !== oeeFilterShift) return false;
+                  if (oeeFilterOperator !== 'all' && operatorVal !== oeeFilterOperator) return false;
+                  return true;
+                });
+
+                return (
+                  <section className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+                      <div>
+                        <h3 className="text-base font-bold text-slate-800 flex items-center gap-2 font-display">
+                          <TrendingUp className="w-5 h-5 text-emerald-600" />
+                          <span>ประวัติบันทึก OEE (Production & Performance Records)</span>
+                        </h3>
+                        <p className="text-xs text-slate-500">รายการประวัติการบันทึก OEE เป้าหมาย ผลผลิต ของดี ของเสีย และเวลาหยุดเครื่อง</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleExportExcel}
+                        className="px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-800 text-xs font-black flex items-center gap-2 hover:bg-emerald-500/30 transition shadow-sm self-start sm:self-auto"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" /> ส่งออก Excel
+                      </button>
+                    </div>
+
+                    {/* Filter Bar for OEE History */}
+                    <div className={`backdrop-blur-xl border rounded-2xl p-3 shadow-glass ${cardBg} grid grid-cols-1 sm:grid-cols-4 gap-2.5`}>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-black text-slate-600 block">📅 วันที่ (Date)</label>
+                          <button
+                            type="button"
+                            onClick={() => setOeeFilterDate(oeeFilterDate ? '' : new Date().toISOString().slice(0, 10))}
+                            className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition ${!oeeFilterDate ? 'bg-blue-600 text-white border-blue-700 shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'}`}
+                          >
+                            {!oeeFilterDate ? '✓ All (ทั้งหมด)' : 'All'}
+                          </button>
+                        </div>
+                        <input
+                          type="date"
+                          value={oeeFilterDate}
+                          onChange={e => setOeeFilterDate(e.target.value)}
+                          className="w-full text-xs font-mono font-bold border rounded-xl p-2 bg-white text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-600 block mb-1">⚙️ เครื่องจักร (Machine)</label>
+                        <select
+                          value={oeeFilterMachine}
+                          onChange={e => setOeeFilterMachine(e.target.value)}
+                          className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
+                        >
+                          <option value="all">All (ทุกเครื่อง)</option>
+                          {MACHINES.map(m => (
+                            <option key={m.id} value={m.name}>{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-600 block mb-1">⏰ กะ (Shift)</label>
+                        <select
+                          value={oeeFilterShift}
+                          onChange={e => setOeeFilterShift(e.target.value)}
+                          className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
+                        >
+                          <option value="all">All (ทุกกะ)</option>
+                          <option value="A">กะ A</option>
+                          <option value="B">กะ B</option>
+                          <option value="C">กะ C</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-600 block mb-1">👤 ผู้บันทึก (Operator)</label>
+                        <select
+                          value={oeeFilterOperator}
+                          onChange={e => setOeeFilterOperator(e.target.value)}
+                          className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
+                        >
+                          <option value="all">All (ทุกคน)</option>
+                          {INSPECTORS.map(ins => (
+                            <option key={ins.name} value={ins.name}>{ins.emoji} {ins.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {(oeeFilterDate || oeeFilterMachine !== 'all' || oeeFilterShift !== 'all' || oeeFilterOperator !== 'all') && (
+                      <div className="flex items-center justify-between bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-xs text-blue-800 font-bold">
+                        <span>กำลังกรองข้อมูล (Matched: {oeeList.length})</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOeeFilterDate('');
+                            setOeeFilterMachine('all');
+                            setOeeFilterShift('all');
+                            setOeeFilterOperator('all');
+                          }}
+                          className="text-rose-600 hover:underline font-black"
+                        >
+                          ล้างตัวกรอง ✕
+                        </button>
+                      </div>
+                    )}
+
+                    {oeeList.length === 0 ? (
+                      <div className={`rounded-3xl backdrop-blur-xl border p-12 text-center space-y-3 ${cardBg}`}>
+                        <Box className="w-12 h-12 mx-auto text-slate-400 opacity-50" />
+                        <h3 className="text-base font-black text-slate-900 font-display">ไม่พบประวัติ OEE ตามเงื่อนไขที่เลือก</h3>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        {oeeList.map(item => {
+                          const r = item as any;
+                          const machineName = r.machine ?? r['เครื่องจักร'] ?? 'เครื่องบรรจุ 1Kg No.1';
+                          const m = MACHINES.find(item => item.name === machineName) || { color: '#3b82f6', name: machineName };
+                          const shiftVal = r.shift ?? 'A';
+                          const shiftTypeVal = r.shiftType ?? r['shift duration type'] ?? '8h';
+                          const operatorVal = r.operator ?? r['ชื่อผู้บันทึก'] ?? '-';
+                          const reportDateVal = r.reportDate ?? r['ข้อมูลวันที่'] ?? (r.datetime ? formatDDMMYYYY(r.datetime) : '-');
+
+                          const planTimeVal = Number(r.planTime ?? (shiftTypeVal === '12h' ? 720 : 480));
+                          const bdVal = Number(r.breakdownMin ?? r.bd ?? 0);
+                          const runTimeVal = Number(r.runTime ?? Math.max(0, planTimeVal - bdVal));
+                          const speedStdVal = Number(r.speedStd ?? 34.67);
+                          const speedSetVal = Number(r.speedSet ?? 45.00);
+                          const speedActVal = Number(r.speed ?? r.speedActual ?? 42.00);
+                          const goodVal = Number(r.goodKg ?? r.good ?? 12500);
+                          const rejectVal = Number(r.rejectKg ?? r.reject ?? 0);
+                          const actualVal = Number(r.actualKg ?? r.actual ?? (goodVal + rejectVal));
+                          const targetVal = Number(r.targetKg ?? r.target ?? 15000);
+
+                          const mePct = Number(r['%ME'] ?? (planTimeVal > 0 ? (runTimeVal / planTimeVal) * 100 : 100));
+                          const perfPct = Number(r['%Perf'] ?? (speedSetVal > 0 ? (speedActVal / speedSetVal) * 100 : 100));
+                          const qualPct = Number(r['%Quality'] ?? (actualVal > 0 ? (goodVal / actualVal) * 100 : 100));
+                          const oeePct = Number(r['%OEE'] ?? ((mePct * perfPct * qualPct) / 10000));
+
+                          return (
+                            <div key={r.id || Math.random()} className={`backdrop-blur-xl border rounded-3xl p-4 shadow-glass ${cardBg} space-y-2.5`}>
+                              <div className="flex items-center justify-between border-b pb-2 border-slate-100">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: m.color }}></span>
+                                  <span className="font-black text-xs font-display text-slate-900">{machineName}</span>
+                                </div>
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-800">
+                                  กะ {shiftVal} ({shiftTypeVal})
+                                </span>
+                              </div>
+
+                              <div className="text-[11px] text-slate-600 font-semibold flex items-center justify-between">
+                                <span>📅 {reportDateVal}</span>
+                                <span>👤 ผู้บันทึก: {operatorVal}</span>
+                              </div>
+
+                              {/* Time & Speed Grid */}
+                              <div className="grid grid-cols-3 gap-1 text-[10px] font-mono font-bold bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                <div className="text-center bg-white p-1 rounded border">Plan: {planTimeVal}m</div>
+                                <div className="text-center bg-white p-1 rounded border">Run: {runTimeVal}m</div>
+                                <div className="text-center bg-white p-1 rounded border text-amber-700">BD: {bdVal}m</div>
+                                <div className="text-center bg-white p-1 rounded border">Std: {speedStdVal}</div>
+                                <div className="text-center bg-white p-1 rounded border">Set: {speedSetVal}</div>
+                                <div className="text-center bg-white p-1 rounded border text-blue-700">Act: {speedActVal}</div>
+                              </div>
+
+                              {/* Output kg Grid */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px] font-mono font-bold">
+                                <div className="bg-blue-50 p-1.5 rounded-xl border border-blue-200 text-center">
+                                  <span className="text-[9px] text-blue-800 block">Target</span>
+                                  {Math.round(targetVal).toLocaleString()} kg
+                                </div>
+                                <div className="bg-slate-100 p-1.5 rounded-xl border border-slate-300 text-center">
+                                  <span className="text-[9px] text-slate-600 block">Actual</span>
+                                  {Math.round(actualVal).toLocaleString()} kg
+                                </div>
+                                <div className="bg-emerald-50 p-1.5 rounded-xl border border-emerald-200 text-center">
+                                  <span className="text-[9px] text-emerald-800 block">Good</span>
+                                  {Math.round(goodVal).toLocaleString()} kg
+                                </div>
+                                <div className="bg-rose-50 p-1.5 rounded-xl border border-rose-200 text-center">
+                                  <span className="text-[9px] text-rose-800 block">Reject</span>
+                                  {Math.round(rejectVal).toLocaleString()} kg
+                                </div>
+                              </div>
+
+                              {/* Percentages Bar */}
+                              <div className="grid grid-cols-4 gap-1 text-[10px] font-mono font-black text-center bg-indigo-50/70 p-2 rounded-xl border border-indigo-200">
+                                <div>
+                                  <span className="text-[9px] text-indigo-700 block">OEE</span>
+                                  {oeePct.toFixed(1)}%
+                                </div>
+                                <div>
+                                  <span className="text-[9px] text-indigo-700 block">Perf</span>
+                                  {perfPct.toFixed(1)}%
+                                </div>
+                                <div>
+                                  <span className="text-[9px] text-indigo-700 block">ME</span>
+                                  {mePct.toFixed(1)}%
+                                </div>
+                                <div>
+                                  <span className="text-[9px] text-indigo-700 block">Quality</span>
+                                  {qualPct.toFixed(1)}%
+                                </div>
+                              </div>
+
+                              {r.notes && <div className="text-xs text-slate-700 bg-slate-100 p-2 rounded-lg border">หมายเหตุ: {r.notes}</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                );
+              })()}
             </div>
           </motion.main>
-        )}
+          );
+        })()}
 
         {/* =========================================================
             VIEW 3: FILM ROLL INSPECTION VIEW (บันทึกม้วนฟิล์ม)
@@ -2114,7 +2920,7 @@ export default function App() {
             exit={{ opacity: 0, y: -15 }}
             className="flex-1 p-4 md:p-6"
           >
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div className="max-w-4xl mx-auto space-y-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg md:text-xl font-black flex items-center gap-2 font-display text-slate-900">
@@ -2124,6 +2930,52 @@ export default function App() {
                 </div>
               </div>
 
+              {/* View Switcher Tabs (2 Tabs: บันทึกข้อมูล / ประวัติล่าสุด) */}
+              <div
+                role="tablist"
+                aria-label="มุมมองบันทึกม้วนฟิล์ม"
+                className={`p-1.5 rounded-2xl backdrop-blur-xl border shadow-glass grid grid-cols-2 gap-1.5 ${cardBg}`}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={filmSubTab === 'form'}
+                  onClick={() => setFilmSubTab('form')}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 font-display ${
+                    filmSubTab === 'form'
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                      : 'text-slate-600 hover:bg-slate-100/80'
+                  }`}
+                >
+                  <ClipboardEdit className="w-4 h-4" />
+                  <span>บันทึกข้อมูล</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={filmSubTab === 'history'}
+                  onClick={() => setFilmSubTab('history')}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 font-display ${
+                    filmSubTab === 'history'
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                      : 'text-slate-600 hover:bg-slate-100/80'
+                  }`}
+                >
+                  <History className="w-4 h-4" />
+                  <span>ประวัติล่าสุด</span>
+                  <span
+                    className={`px-2 py-0.5 text-xs font-mono font-bold rounded-full transition-colors ${
+                      filmSubTab === 'history'
+                        ? 'bg-white/25 text-white'
+                        : 'bg-slate-200/90 text-slate-700'
+                    }`}
+                  >
+                    {filmRecords.length}
+                  </span>
+                </button>
+              </div>
+
+              {filmSubTab === 'form' && (
               <div className={`backdrop-blur-xl border rounded-3xl p-6 shadow-2xl space-y-6 ${cardBg}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -2388,721 +3240,9 @@ export default function App() {
                   </button>
                 </div>
               </div>
-            </div>
-          </motion.main>
-        )}
-
-        {/* =========================================================
-            HISTORY HUB VIEW (ประวัติ - 3 Cards Selection)
-           ========================================================= */}
-        {currentView === 'historyHub' && (() => {
-          const sealCount = (sealTempRecords.length > 0
-            ? sealTempRecords
-            : records.filter(r => r.recordType === 'sealTemp' || (!r.recordType && r.tempFront != null))
-          ).length;
-          const oeeCount = records.filter(item => {
-            const r = item as any;
-            return r.recordType === 'oee' ||
-              r.targetKg !== undefined || r.target !== undefined ||
-              r.goodKg !== undefined || r.good !== undefined ||
-              r.actualKg !== undefined || r.actual !== undefined ||
-              r.speed !== undefined || r.speedActual !== undefined ||
-              r['Target'] !== undefined || r['Good'] !== undefined ||
-              r.tempFront === undefined || r.tempFront === null;
-          }).length;
-          const filmCount = filmRecords.length;
-
-          return (
-          <motion.main
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            className="flex-1 p-4 md:p-6"
-          >
-            <div className="max-w-4xl mx-auto space-y-6">
-              <div>
-                <h2 className="text-lg md:text-xl font-black flex items-center gap-2 font-display text-slate-900">
-                  <Clock className="w-5 h-5 text-blue-600" /> ศูนย์รวมประวัติการบันทึกข้อมูล (History Hub)
-                </h2>
-                <p className="text-xs text-slate-500 font-semibold">เลือกหมวดหมู่ประวัติการตรวจสอบและบันทึกข้อมูลที่ต้องการเรียกดู</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Card 1: Seal Temp History */}
-                <div
-                  onClick={() => setCurrentView('historySeal')}
-                  className={`backdrop-blur-xl border rounded-3xl p-6 shadow-xl hover:shadow-2xl transition-all cursor-pointer group bg-white border-slate-200 hover:border-blue-500 hover:scale-[1.02] flex flex-col justify-between space-y-4`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shadow-md group-hover:bg-blue-600 group-hover:text-white transition-colors shrink-0">
-                        <Thermometer className="w-6 h-6" />
-                      </div>
-                      <div className="px-3.5 py-1.5 rounded-2xl bg-blue-50 text-blue-700 border border-blue-200 shadow-sm flex flex-col items-end justify-center leading-none">
-                        <span className="text-2xl md:text-3xl font-black font-mono tracking-tight">{sealCount.toLocaleString()}</span>
-                        <span className="text-[10px] font-bold text-blue-600/80 mt-0.5">รายการ</span>
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-base font-black text-slate-900 font-display">ประวัติ Seal Temp</h3>
-                      <p className="text-xs text-slate-500 font-semibold mt-1">ประวัติการตรวจสอบอุณหภูมิฮีตเตอร์ ซีลความร้อน และ Checklist คุณภาพแพ็คเกจ</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs font-black text-blue-600">
-                    <span>ดูประวัติทั้งหมด</span>
-                    <span className="group-hover:translate-x-1 transition-transform">→</span>
-                  </div>
-                </div>
-
-                {/* Card 2: OEE History */}
-                <div
-                  onClick={() => setCurrentView('historyOee')}
-                  className={`backdrop-blur-xl border rounded-3xl p-6 shadow-xl hover:shadow-2xl transition-all cursor-pointer group bg-white border-slate-200 hover:border-emerald-500 hover:scale-[1.02] flex flex-col justify-between space-y-4`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shadow-md group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0">
-                        <TrendingUp className="w-6 h-6" />
-                      </div>
-                      <div className="px-3.5 py-1.5 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm flex flex-col items-end justify-center leading-none">
-                        <span className="text-2xl md:text-3xl font-black font-mono tracking-tight">{oeeCount.toLocaleString()}</span>
-                        <span className="text-[10px] font-bold text-emerald-600/80 mt-0.5">รายการ</span>
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-base font-black text-slate-900 font-display">ประวัติ OEE</h3>
-                      <p className="text-xs text-slate-500 font-semibold mt-1">ประวัติการบันทึกประสิทธิภาพการผลิต Target, Actual, Good, Reject และ Breakdown Time</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs font-black text-emerald-600">
-                    <span>ดูประวัติทั้งหมด</span>
-                    <span className="group-hover:translate-x-1 transition-transform">→</span>
-                  </div>
-                </div>
-
-                {/* Card 3: Film Roll History */}
-                <div
-                  onClick={() => setCurrentView('historyFilm')}
-                  className={`backdrop-blur-xl border rounded-3xl p-6 shadow-xl hover:shadow-2xl transition-all cursor-pointer group bg-white border-slate-200 hover:border-purple-500 hover:scale-[1.02] flex flex-col justify-between space-y-4`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shadow-md group-hover:bg-purple-600 group-hover:text-white transition-colors shrink-0">
-                        <Box className="w-6 h-6" />
-                      </div>
-                      <div className="px-3.5 py-1.5 rounded-2xl bg-purple-50 text-purple-700 border border-purple-200 shadow-sm flex flex-col items-end justify-center leading-none">
-                        <span className="text-2xl md:text-3xl font-black font-mono tracking-tight">{filmCount.toLocaleString()}</span>
-                        <span className="text-[10px] font-bold text-purple-600/80 mt-0.5">รายการ</span>
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-base font-black text-slate-900 font-display">ประวัติม้วนฟิล์ม</h3>
-                      <p className="text-xs text-slate-500 font-semibold mt-1">ประวัติการตรวจสอบ Lot ม้วนฟิล์ม ผู้ผลิต ความหนา ความกว้าง และผลการตรวจ</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs font-black text-purple-600">
-                    <span>ดูประวัติทั้งหมด</span>
-                    <span className="group-hover:translate-x-1 transition-transform">→</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.main>
-          );
-        })()}
-
-        {/* =========================================================
-            HISTORY SEAL TEMP VIEW (ประวัติ Seal Temp)
-           ========================================================= */}
-        {currentView === 'historySeal' && (
-          <motion.main
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            className="flex-1 p-4 md:p-6"
-          >
-            <div className="max-w-4xl mx-auto space-y-4">
-              <div className="flex items-center justify-between mb-2">
-                <button
-                  onClick={() => setCurrentView('historyHub')}
-                  className="text-xs font-black text-blue-600 hover:underline flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200 shadow-sm"
-                >
-                  ← กลับสู่ศูนย์รวมประวัติ
-                </button>
-              </div>
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
-                <div>
-                  <h2 className="text-lg md:text-xl font-black flex items-center gap-2 font-display text-slate-900">
-                    <Clock className="w-5 h-5 text-blue-600" /> ประวัติบันทึก Seal Temp (Temperature & Check Sheet)
-                  </h2>
-                  <p className="text-xs text-slate-500 font-semibold">รายการประวัติการตรวจสอบอุณหภูมิฮีตเตอร์และซีลความร้อน</p>
-                </div>
-                <button
-                  onClick={handleExportExcel}
-                  className="px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-800 text-xs font-black flex items-center gap-2 hover:bg-emerald-500/30 transition shadow-sm"
-                >
-                  <FileSpreadsheet className="w-4 h-4" /> ส่งออก Excel
-                </button>
-              </div>
-
-              {/* Filter Bar for Seal Temp History */}
-              <div className={`backdrop-blur-xl border rounded-2xl p-3 shadow-lg ${cardBg} grid grid-cols-1 sm:grid-cols-4 gap-2.5`}>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] font-black text-slate-600 block">📅 วันที่ (Date)</label>
-                    <button
-                      type="button"
-                      onClick={() => setSealFilterDate(sealFilterDate ? '' : new Date().toISOString().slice(0, 10))}
-                      className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition ${!sealFilterDate ? 'bg-blue-600 text-white border-blue-700 shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'}`}
-                    >
-                      {!sealFilterDate ? '✓ All (ทั้งหมด)' : 'All'}
-                    </button>
-                  </div>
-                  <input
-                    type="date"
-                    value={sealFilterDate}
-                    onChange={e => setSealFilterDate(e.target.value)}
-                    className="w-full text-xs font-mono font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">⚙️ เครื่องจักร (Machine)</label>
-                  <select
-                    value={sealFilterMachine}
-                    onChange={e => setSealFilterMachine(e.target.value)}
-                    className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  >
-                    <option value="all">All (ทุกเครื่อง)</option>
-                    {MACHINES.map(m => (
-                      <option key={m.id} value={m.name}>{m.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">⏰ กะ (Shift)</label>
-                  <select
-                    value={sealFilterShift}
-                    onChange={e => setSealFilterShift(e.target.value)}
-                    className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  >
-                    <option value="all">All (ทุกกะ)</option>
-                    <option value="A">กะ A</option>
-                    <option value="B">กะ B</option>
-                    <option value="C">กะ C</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">👤 ผู้บันทึก (Operator)</label>
-                  <select
-                    value={sealFilterOperator}
-                    onChange={e => setSealFilterOperator(e.target.value)}
-                    className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  >
-                    <option value="all">All (ทุกคน)</option>
-                    {INSPECTORS.map(ins => (
-                      <option key={ins.name} value={ins.name}>{ins.emoji} {ins.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Reset filter badge if active */}
-              {(sealFilterDate || sealFilterMachine !== 'all' || sealFilterShift !== 'all' || sealFilterOperator !== 'all') && (
-                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-xs text-blue-800 font-bold">
-                  <span>กำลังกรองข้อมูล (Matched: {records.filter(r => (r.targetKg === null || r.targetKg === undefined)).filter(r => {
-                    if (sealFilterDate && !r.datetime?.startsWith(sealFilterDate) && r.reportDate !== sealFilterDate) return false;
-                    if (sealFilterMachine !== 'all' && r.machine !== sealFilterMachine) return false;
-                    if (sealFilterShift !== 'all' && r.shift !== sealFilterShift) return false;
-                    if (sealFilterOperator !== 'all' && r.operator !== sealFilterOperator) return false;
-                    return true;
-                  }).length})</span>
-                  <button
-                    onClick={() => {
-                      setSealFilterDate('');
-                      setSealFilterMachine('all');
-                      setSealFilterShift('all');
-                      setSealFilterOperator('all');
-                    }}
-                    className="text-rose-600 hover:underline font-black"
-                  >
-                    ล้างตัวกรอง ✕
-                  </button>
-                </div>
               )}
 
-              {(() => {
-                const sealRecs = sealTempRecords.length > 0 ? sealTempRecords : records.filter(r => r.recordType === 'sealTemp' || (!r.recordType && (r.tempFront !== null || r.tempFront !== undefined)));
-                const filtered = sealRecs.filter(r => {
-                  const recDate = r.reportDate || r.datetime || '';
-                  if (sealFilterDate && !matchesDateFilter(recDate, sealFilterDate)) return false;
-                  if (sealFilterMachine !== 'all' && r.machine !== sealFilterMachine) return false;
-                  if (sealFilterShift !== 'all' && r.shift !== sealFilterShift) return false;
-                  if (sealFilterOperator !== 'all' && r.operator !== sealFilterOperator) return false;
-                  return true;
-                });
-
-                if (filtered.length === 0) {
-                  return (
-                    <div className="text-center py-16 border rounded-2xl bg-white border-slate-300 shadow-lg">
-                      <Box className="w-12 h-12 mx-auto text-slate-400 mb-3 opacity-50" />
-                      <h3 className="text-base font-black text-slate-900">ไม่พบประวัติ Seal Temp ตามเงื่อนไขที่เลือก</h3>
-                    </div>
-                  );
-                }
-
-                const renderBadge = (val?: string | null) => {
-                  const isPass = val === 'pass' || val === 'ผ่าน';
-                  const isFail = val === 'fail' || val === 'ไม่ผ่าน';
-                  if (isPass) return <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px] font-black border border-emerald-200">✔ ผ่าน</span>;
-                  if (isFail) return <span className="text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded text-[10px] font-black border border-rose-200">✘ ไม่ผ่าน</span>;
-                  return <span className="text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-slate-200">-</span>;
-                };
-
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {filtered.map(r => {
-                      const m = MACHINES.find(item => item.name === r.machine) || { color: '#3b82f6', name: r.machine };
-                      const ok = recordOk(r);
-                      return (
-                        <div key={r.id || Math.random()} className={`backdrop-blur-xl border rounded-2xl p-4 shadow-lg ${cardBg} space-y-2.5`}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: m.color }}></span>
-                              <span className="font-black text-xs font-display text-slate-900">{r.machine}</span>
-                            </div>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${ok ? 'bg-emerald-500/20 text-emerald-800' : 'bg-rose-500/20 text-rose-800'}`}>
-                              {ok ? '✔ ผ่านทั้งหมด' : '✘ มีรายการไม่ผ่าน'}
-                            </span>
-                          </div>
-
-                          <div className="text-[11px] text-slate-600 font-semibold border-b pb-1.5 border-slate-100 flex items-center justify-between">
-                            <span>📅 {formatDDMMYYYY(r.datetime)}</span>
-                            <span>กะ {r.shift} | ผู้ตรวจ: {r.operator || '-'}</span>
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono font-bold">
-                            <div className="bg-slate-100 p-1.5 rounded-lg border text-center">หน้า: {r.tempFront || '-'}°C</div>
-                            <div className="bg-slate-100 p-1.5 rounded-lg border text-center">หลัง: {r.tempBack || '-'}°C</div>
-                            <div className="bg-slate-100 p-1.5 rounded-lg border text-center">กลาง: {r.tempMid || '-'}°C</div>
-                          </div>
-
-                          {/* Compact Checklist Grid */}
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1 text-[11px] bg-slate-50 p-2 rounded-xl border border-slate-200">
-                            <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border">
-                              <span className="font-bold text-slate-700">🏷️ Lot No.</span>
-                              {renderBadge(r.lot)}
-                            </div>
-                            <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border">
-                              <span className="font-bold text-slate-700">🛠️ เทปล่อน</span>
-                              {renderBadge(r.teflon)}
-                            </div>
-                            <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border">
-                              <span className="font-bold text-slate-700">📦 Seal (บน)</span>
-                              {renderBadge(r.packSealTop)}
-                            </div>
-                            <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border">
-                              <span className="font-bold text-slate-700">📦 Seal (กลาง)</span>
-                              {renderBadge(r.packSealMid)}
-                            </div>
-                            <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border">
-                              <span className="font-bold text-slate-700">📦 Seal (ล่าง)</span>
-                              {renderBadge(r.packSealBot)}
-                            </div>
-                            <div className="flex items-center justify-between bg-white p-1.5 rounded-lg border">
-                              <span className="font-bold text-slate-700">🎯 รูเข็ม</span>
-                              {renderBadge(r.hole)}
-                            </div>
-                          </div>
-
-                          {r.notes && <div className="text-xs text-slate-700 bg-blue-50 p-2 rounded-lg border">หมายเหตุ: {r.notes}</div>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </div>
-          </motion.main>
-        )}
-
-        {/* =========================================================
-            HISTORY OEE VIEW (ประวัติ OEE)
-           ========================================================= */}
-        {currentView === 'historyOee' && (
-          <motion.main
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            className="flex-1 p-4 md:p-6"
-          >
-            <div className="max-w-4xl mx-auto space-y-4">
-              <div className="flex items-center justify-between mb-2">
-                <button
-                  onClick={() => setCurrentView('historyHub')}
-                  className="text-xs font-black text-blue-600 hover:underline flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200"
-                >
-                  ← กลับสู่ศูนย์รวมประวัติ
-                </button>
-              </div>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-lg md:text-xl font-black flex items-center gap-2 font-display text-slate-900">
-                    <TrendingUp className="w-5 h-5 text-emerald-600" /> ประวัติบันทึก OEE (Production & Performance Records)
-                  </h2>
-                  <p className="text-xs text-slate-500 font-semibold">รายการประวัติการบันทึก OEE เป้าหมาย ผลผลิต ของดี ของเสีย และเวลาหยุดเครื่อง</p>
-                </div>
-                <button
-                  onClick={handleExportExcel}
-                  className="px-4 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-800 text-xs font-black flex items-center gap-2 hover:bg-emerald-500/30 transition shadow-sm"
-                >
-                  <FileSpreadsheet className="w-4 h-4" /> ส่งออก Excel
-                </button>
-              </div>
-
-              {/* Filter Bar for OEE History */}
-              <div className={`backdrop-blur-xl border rounded-2xl p-3 shadow-lg ${cardBg} grid grid-cols-1 sm:grid-cols-4 gap-2.5`}>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] font-black text-slate-600 block">📅 วันที่ (Date)</label>
-                    <button
-                      type="button"
-                      onClick={() => setOeeFilterDate(oeeFilterDate ? '' : new Date().toISOString().slice(0, 10))}
-                      className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition ${!oeeFilterDate ? 'bg-blue-600 text-white border-blue-700 shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'}`}
-                    >
-                      {!oeeFilterDate ? '✓ All (ทั้งหมด)' : 'All'}
-                    </button>
-                  </div>
-                  <input
-                    type="date"
-                    value={oeeFilterDate}
-                    onChange={e => setOeeFilterDate(e.target.value)}
-                    className="w-full text-xs font-mono font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">⚙️ เครื่องจักร (Machine)</label>
-                  <select
-                    value={oeeFilterMachine}
-                    onChange={e => setOeeFilterMachine(e.target.value)}
-                    className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  >
-                    <option value="all">All (ทุกเครื่อง)</option>
-                    {MACHINES.map(m => (
-                      <option key={m.id} value={m.name}>{m.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">⏰ กะ (Shift)</label>
-                  <select
-                    value={oeeFilterShift}
-                    onChange={e => setOeeFilterShift(e.target.value)}
-                    className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  >
-                    <option value="all">All (ทุกกะ)</option>
-                    <option value="A">กะ A</option>
-                    <option value="B">กะ B</option>
-                    <option value="C">กะ C</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">👤 ผู้บันทึก (Operator)</label>
-                  <select
-                    value={oeeFilterOperator}
-                    onChange={e => setOeeFilterOperator(e.target.value)}
-                    className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  >
-                    <option value="all">All (ทุกคน)</option>
-                    {INSPECTORS.map(ins => (
-                      <option key={ins.name} value={ins.name}>{ins.emoji} {ins.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {(oeeFilterDate || oeeFilterMachine !== 'all' || oeeFilterShift !== 'all' || oeeFilterOperator !== 'all') && (
-                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-xs text-blue-800 font-bold">
-                  <span>กำลังกรองข้อมูล</span>
-                  <button
-                    onClick={() => {
-                      setOeeFilterDate('');
-                      setOeeFilterMachine('all');
-                      setOeeFilterShift('all');
-                      setOeeFilterOperator('all');
-                    }}
-                    className="text-rose-600 hover:underline font-black"
-                  >
-                    ล้างตัวกรอง ✕
-                  </button>
-                </div>
-              )}
-
-              {(() => {
-                const oeeList = records.filter(item => {
-                  const r = item as any;
-                  const isOeeType = r.recordType === 'oee' ||
-                         r.targetKg !== undefined || r.target !== undefined ||
-                         r.goodKg !== undefined || r.good !== undefined ||
-                         r.actualKg !== undefined || r.actual !== undefined ||
-                         r.speed !== undefined || r.speedActual !== undefined ||
-                         r['Target'] !== undefined || r['Good'] !== undefined ||
-                         r.tempFront === undefined || r.tempFront === null;
-                  if (!isOeeType) return false;
-
-                  const machineName = r.machine ?? r['เครื่องจักร'] ?? 'เครื่องบรรจุ 1Kg No.1';
-                  const shiftVal = r.shift ?? 'A';
-                  const operatorVal = r.operator ?? r['ชื่อผู้บันทึก'] ?? '-';
-                  const reportDateVal = r.reportDate ?? r['ข้อมูลวันที่'] ?? r.datetime ?? '';
-
-                  if (oeeFilterDate && !matchesDateFilter(reportDateVal, oeeFilterDate)) return false;
-                  if (oeeFilterMachine !== 'all' && machineName !== oeeFilterMachine) return false;
-                  if (oeeFilterShift !== 'all' && shiftVal !== oeeFilterShift) return false;
-                  if (oeeFilterOperator !== 'all' && operatorVal !== oeeFilterOperator) return false;
-                  return true;
-                });
-
-                if (oeeList.length === 0) {
-                  return (
-                    <div className="text-center py-16 border rounded-2xl bg-white border-slate-300 shadow-lg">
-                      <Box className="w-12 h-12 mx-auto text-slate-400 mb-3 opacity-50" />
-                      <h3 className="text-base font-black text-slate-900">ไม่พบประวัติ OEE ตามเงื่อนไขที่เลือก</h3>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {oeeList.map(item => {
-                    const r = item as any;
-                    const machineName = r.machine ?? r['เครื่องจักร'] ?? 'เครื่องบรรจุ 1Kg No.1';
-                    const m = MACHINES.find(item => item.name === machineName) || { color: '#3b82f6', name: machineName };
-                    const shiftVal = r.shift ?? 'A';
-                    const shiftTypeVal = r.shiftType ?? r['shift duration type'] ?? '8h';
-                    const operatorVal = r.operator ?? r['ชื่อผู้บันทึก'] ?? '-';
-                    const reportDateVal = r.reportDate ?? r['ข้อมูลวันที่'] ?? (r.datetime ? formatDDMMYYYY(r.datetime) : '-');
-
-                    const planTimeVal = Number(r.planTime ?? (shiftTypeVal === '12h' ? 720 : 480));
-                    const bdVal = Number(r.breakdownMin ?? r.bd ?? 0);
-                    const runTimeVal = Number(r.runTime ?? Math.max(0, planTimeVal - bdVal));
-                    const speedStdVal = Number(r.speedStd ?? 34.67);
-                    const speedSetVal = Number(r.speedSet ?? 45.00);
-                    const speedActVal = Number(r.speed ?? r.speedActual ?? 42.00);
-                    const goodVal = Number(r.goodKg ?? r.good ?? 12500);
-                    const rejectVal = Number(r.rejectKg ?? r.reject ?? 0);
-                    const actualVal = Number(r.actualKg ?? r.actual ?? (goodVal + rejectVal));
-                    const targetVal = Number(r.targetKg ?? r.target ?? 15000);
-
-                    const mePct = Number(r['%ME'] ?? (planTimeVal > 0 ? (runTimeVal / planTimeVal) * 100 : 100));
-                    const perfPct = Number(r['%Perf'] ?? (speedSetVal > 0 ? (speedActVal / speedSetVal) * 100 : 100));
-                    const qualPct = Number(r['%Quality'] ?? (actualVal > 0 ? (goodVal / actualVal) * 100 : 100));
-                    const oeePct = Number(r['%OEE'] ?? ((mePct * perfPct * qualPct) / 10000));
-
-                    return (
-                      <div key={r.id || Math.random()} className={`backdrop-blur-xl border rounded-2xl p-4 shadow-lg ${cardBg} space-y-2.5`}>
-                        <div className="flex items-center justify-between border-b pb-2 border-slate-100">
-                          <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: m.color }}></span>
-                            <span className="font-black text-xs font-display text-slate-900">{machineName}</span>
-                          </div>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-800">
-                            กะ {shiftVal} ({shiftTypeVal})
-                          </span>
-                        </div>
-
-                        <div className="text-[11px] text-slate-600 font-semibold flex items-center justify-between">
-                          <span>📅 {reportDateVal}</span>
-                          <span>👤 ผู้บันทึก: {operatorVal}</span>
-                        </div>
-
-                        {/* Time & Speed Grid */}
-                        <div className="grid grid-cols-3 gap-1 text-[10px] font-mono font-bold bg-slate-50 p-2 rounded-xl border border-slate-200">
-                          <div className="text-center bg-white p-1 rounded border">Plan: {planTimeVal}m</div>
-                          <div className="text-center bg-white p-1 rounded border">Run: {runTimeVal}m</div>
-                          <div className="text-center bg-white p-1 rounded border text-amber-700">BD: {bdVal}m</div>
-                          <div className="text-center bg-white p-1 rounded border">Std: {speedStdVal}</div>
-                          <div className="text-center bg-white p-1 rounded border">Set: {speedSetVal}</div>
-                          <div className="text-center bg-white p-1 rounded border text-blue-700">Act: {speedActVal}</div>
-                        </div>
-
-                        {/* Output kg Grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px] font-mono font-bold">
-                          <div className="bg-blue-50 p-1.5 rounded-xl border border-blue-200 text-center">
-                            <span className="text-[9px] text-blue-800 block">Target</span>
-                            {Math.round(targetVal).toLocaleString()} kg
-                          </div>
-                          <div className="bg-slate-100 p-1.5 rounded-xl border border-slate-300 text-center">
-                            <span className="text-[9px] text-slate-600 block">Actual</span>
-                            {Math.round(actualVal).toLocaleString()} kg
-                          </div>
-                          <div className="bg-emerald-50 p-1.5 rounded-xl border border-emerald-200 text-center">
-                            <span className="text-[9px] text-emerald-800 block">Good</span>
-                            {Math.round(goodVal).toLocaleString()} kg
-                          </div>
-                          <div className="bg-rose-50 p-1.5 rounded-xl border border-rose-200 text-center">
-                            <span className="text-[9px] text-rose-800 block">Reject</span>
-                            {Math.round(rejectVal).toLocaleString()} kg
-                          </div>
-                        </div>
-
-                        {/* Percentages Bar */}
-                        <div className="grid grid-cols-4 gap-1 text-[10px] font-mono font-black text-center bg-indigo-50/70 p-2 rounded-xl border border-indigo-200">
-                          <div>
-                            <span className="text-[9px] text-indigo-700 block">OEE</span>
-                            {oeePct.toFixed(1)}%
-                          </div>
-                          <div>
-                            <span className="text-[9px] text-indigo-700 block">Perf</span>
-                            {perfPct.toFixed(1)}%
-                          </div>
-                          <div>
-                            <span className="text-[9px] text-indigo-700 block">ME</span>
-                            {mePct.toFixed(1)}%
-                          </div>
-                          <div>
-                            <span className="text-[9px] text-indigo-700 block">Quality</span>
-                            {qualPct.toFixed(1)}%
-                          </div>
-                        </div>
-
-                        {r.notes && <div className="text-xs text-slate-700 bg-slate-100 p-2 rounded-lg border">หมายเหตุ: {r.notes}</div>}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-            </div>
-          </motion.main>
-        )}
-
-        {/* =========================================================
-            HISTORY FILM VIEW (ประวัติม้วนฟิล์ม)
-           ========================================================= */}
-        {currentView === 'historyFilm' && (
-          <motion.main
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            className="flex-1 p-4 md:p-6"
-          >
-            <div className="max-w-4xl mx-auto space-y-4">
-              <div className="flex items-center justify-between mb-2">
-                <button
-                  onClick={() => setCurrentView('historyHub')}
-                  className="text-xs font-black text-blue-600 hover:underline flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200"
-                >
-                  ← กลับสู่ศูนย์รวมประวัติ
-                </button>
-              </div>
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <h2 className="text-lg md:text-xl font-black flex items-center gap-2 font-display text-slate-900">
-                    <svg className="w-5 h-5 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><line x1="12" y1="3" x2="12" y2="8.5"/></svg> ประวัติบันทึกม้วนฟิล์ม (Film Roll Inspection History)
-                  </h2>
-                  <p className="text-xs text-slate-500 font-semibold">รายการประวัติการตรวจสอบ Lot ม้วนฟิล์ม ความหนา ความกว้าง และผลการตรวจ</p>
-                </div>
-              </div>
-
-              {/* Filter Bar for Film Roll History */}
-              <div className={`backdrop-blur-xl border rounded-2xl p-3 shadow-lg ${cardBg} grid grid-cols-1 sm:grid-cols-5 gap-2.5`}>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] font-black text-slate-600 block">📅 วันที่ (Date)</label>
-                    <button
-                      type="button"
-                      onClick={() => setFilmHistFilterDate(filmHistFilterDate ? '' : new Date().toISOString().slice(0, 10))}
-                      className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition ${!filmHistFilterDate ? 'bg-purple-600 text-white border-purple-700 shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'}`}
-                    >
-                      {!filmHistFilterDate ? '✓ All (ทั้งหมด)' : 'All'}
-                    </button>
-                  </div>
-                  <input
-                    type="date"
-                    value={filmHistFilterDate}
-                    onChange={e => setFilmHistFilterDate(e.target.value)}
-                    className="w-full text-xs font-mono font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">⚙️ เครื่อง (Machine)</label>
-                  <select
-                    value={filmHistFilterMachine}
-                    onChange={e => setFilmHistFilterMachine(e.target.value)}
-                    className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  >
-                    <option value="all">All (ทุกเครื่อง)</option>
-                    {MACHINES.map(m => (
-                      <option key={m.id} value={m.name}>{m.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">⏰ กะ (Shift)</label>
-                  <select
-                    value={filmHistFilterShift}
-                    onChange={e => setFilmHistFilterShift(e.target.value)}
-                    className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  >
-                    <option value="all">All (ทุกกะ)</option>
-                    <option value="A">กะ A</option>
-                    <option value="B">กะ B</option>
-                    <option value="C">กะ C</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">🏭 Supplier</label>
-                  <select
-                    value={filmHistFilterSupplier}
-                    onChange={e => setFilmHistFilterSupplier(e.target.value)}
-                    className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  >
-                    <option value="all">All (ทุก Supplier)</option>
-                    <option value="TG">TG</option>
-                    <option value="S&S">S&S</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-600 block mb-1">👤 ผู้ตรวจ (Operator)</label>
-                  <select
-                    value={filmHistFilterOperator}
-                    onChange={e => setFilmHistFilterOperator(e.target.value)}
-                    className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
-                  >
-                    <option value="all">All (ทุกคน)</option>
-                    {INSPECTORS.map(ins => (
-                      <option key={ins.name} value={ins.name}>{ins.emoji} {ins.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Reset filter badge if active */}
-              {(filmHistFilterDate || filmHistFilterMachine !== 'all' || filmHistFilterShift !== 'all' || filmHistFilterOperator !== 'all' || filmHistFilterSupplier !== 'all') && (
-                <div className="flex items-center justify-between bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl text-xs text-purple-900 font-bold">
-                  <span>กำลังกรองข้อมูล (Matched: {filmRecords.filter(fr => {
-                    if (filmHistFilterDate && fr.filmDate && !matchesDateFilter(fr.filmDate, filmHistFilterDate) && !fr.datetime?.startsWith(filmHistFilterDate)) return false;
-                    if (filmHistFilterMachine !== 'all' && fr.machine !== filmHistFilterMachine) return false;
-                    if (filmHistFilterShift !== 'all' && fr.shift !== filmHistFilterShift) return false;
-                    if (filmHistFilterSupplier !== 'all' && fr.supplier !== filmHistFilterSupplier) return false;
-                    if (filmHistFilterOperator !== 'all' && fr.operator !== filmHistFilterOperator) return false;
-                    return true;
-                  }).length})</span>
-                  <button
-                    onClick={() => {
-                      setFilmHistFilterDate('');
-                      setFilmHistFilterMachine('all');
-                      setFilmHistFilterShift('all');
-                      setFilmHistFilterOperator('all');
-                      setFilmHistFilterSupplier('all');
-                    }}
-                    className="text-purple-700 hover:text-purple-900 underline text-xs font-black"
-                  >
-                    ล้างตัวกรอง ✕
-                  </button>
-                </div>
-              )}
-
-              {(() => {
+              {filmSubTab === 'history' && (() => {
                 const filteredFilmRecs = filmRecords.filter(fr => {
                   if (filmHistFilterDate && fr.filmDate && !matchesDateFilter(fr.filmDate, filmHistFilterDate) && !fr.datetime?.startsWith(filmHistFilterDate)) return false;
                   if (filmHistFilterMachine !== 'all' && fr.machine !== filmHistFilterMachine) return false;
@@ -3112,40 +3252,140 @@ export default function App() {
                   return true;
                 });
 
-                if (filteredFilmRecs.length === 0) {
-                  return (
-                    <div className="text-center py-16 border rounded-2xl bg-white border-slate-300 shadow-lg">
-                      <Box className="w-12 h-12 mx-auto text-slate-400 mb-3 opacity-50" />
-                      <h3 className="text-base font-black text-slate-900">ไม่พบประวัติม้วนฟิล์มตามเงื่อนไขการกรอง</h3>
-                    </div>
-                  );
-                }
-
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {filteredFilmRecs.map(fr => (
-                      <div key={fr.id} className={`backdrop-blur-xl border rounded-2xl p-4 shadow-lg ${cardBg} flex items-center justify-between gap-3`}>
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-black text-xs text-slate-900">{fr.machine || 'เครื่องบรรจุ'}</span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800">Supplier: {fr.supplier}</span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">กะ {fr.shift} ({fr.shiftType})</span>
-                          </div>
-                          <div className="text-[11px] text-slate-600 font-semibold">
-                            📅 วันที่: {fr.filmDate || '-'} | ⏰ เวลาเปลี่ยน: {fr.changeTime || '-'}
-                          </div>
-                          <div className="text-[11px] text-slate-600 font-semibold">
-                            👤 ผู้บันทึก: {fr.operator}
-                          </div>
+                  <section className="space-y-4">
+                    <div className="px-1">
+                      <h3 className="text-base font-bold text-slate-800 flex items-center gap-2 font-display">
+                        <svg className="w-5 h-5 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><line x1="12" y1="3" x2="12" y2="8.5"/></svg>
+                        <span>ประวัติบันทึกม้วนฟิล์ม (Film Roll Inspection History)</span>
+                      </h3>
+                      <p className="text-xs text-slate-500">รายการประวัติการตรวจสอบ Lot ม้วนฟิล์ม ความหนา ความกว้าง และผลการตรวจ</p>
+                    </div>
+
+                    {/* Filter Bar for Film Roll History */}
+                    <div className={`backdrop-blur-xl border rounded-2xl p-3 shadow-glass ${cardBg} grid grid-cols-1 sm:grid-cols-5 gap-2.5`}>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-black text-slate-600 block">📅 วันที่ (Date)</label>
+                          <button
+                            type="button"
+                            onClick={() => setFilmHistFilterDate(filmHistFilterDate ? '' : new Date().toISOString().slice(0, 10))}
+                            className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition ${!filmHistFilterDate ? 'bg-purple-600 text-white border-purple-700 shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'}`}
+                          >
+                            {!filmHistFilterDate ? '✓ All (ทั้งหมด)' : 'All'}
+                          </button>
                         </div>
-                        {fr.tagPhoto && (
-                          <div className="w-16 h-16 rounded-xl overflow-hidden border border-purple-300 shrink-0 bg-white shadow-sm">
-                            <img src={fr.tagPhoto} alt="Film Roll Tag" className="w-full h-full object-cover" />
-                          </div>
-                        )}
+                        <input
+                          type="date"
+                          value={filmHistFilterDate}
+                          onChange={e => setFilmHistFilterDate(e.target.value)}
+                          className="w-full text-xs font-mono font-bold border rounded-xl p-2 bg-white text-slate-900"
+                        />
                       </div>
-                    ))}
-                  </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-600 block mb-1">⚙️ เครื่อง (Machine)</label>
+                        <select
+                          value={filmHistFilterMachine}
+                          onChange={e => setFilmHistFilterMachine(e.target.value)}
+                          className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
+                        >
+                          <option value="all">All (ทุกเครื่อง)</option>
+                          {MACHINES.map(m => (
+                            <option key={m.id} value={m.name}>{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-600 block mb-1">⏰ กะ (Shift)</label>
+                        <select
+                          value={filmHistFilterShift}
+                          onChange={e => setFilmHistFilterShift(e.target.value)}
+                          className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
+                        >
+                          <option value="all">All (ทุกกะ)</option>
+                          <option value="A">กะ A</option>
+                          <option value="B">กะ B</option>
+                          <option value="C">กะ C</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-600 block mb-1">🏭 Supplier</label>
+                        <select
+                          value={filmHistFilterSupplier}
+                          onChange={e => setFilmHistFilterSupplier(e.target.value)}
+                          className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
+                        >
+                          <option value="all">All (ทุก Supplier)</option>
+                          <option value="TG">TG</option>
+                          <option value="S&S">S&S</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-slate-600 block mb-1">👤 ผู้ตรวจ (Operator)</label>
+                        <select
+                          value={filmHistFilterOperator}
+                          onChange={e => setFilmHistFilterOperator(e.target.value)}
+                          className="w-full text-xs font-bold border rounded-xl p-2 bg-white text-slate-900"
+                        >
+                          <option value="all">All (ทุกคน)</option>
+                          {INSPECTORS.map(ins => (
+                            <option key={ins.name} value={ins.name}>{ins.emoji} {ins.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {(filmHistFilterDate || filmHistFilterMachine !== 'all' || filmHistFilterShift !== 'all' || filmHistFilterOperator !== 'all' || filmHistFilterSupplier !== 'all') && (
+                      <div className="flex items-center justify-between bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl text-xs text-purple-900 font-bold">
+                        <span>กำลังกรองข้อมูล (Matched: {filteredFilmRecs.length})</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFilmHistFilterDate('');
+                            setFilmHistFilterMachine('all');
+                            setFilmHistFilterShift('all');
+                            setFilmHistFilterOperator('all');
+                            setFilmHistFilterSupplier('all');
+                          }}
+                          className="text-purple-700 hover:text-purple-900 underline text-xs font-black"
+                        >
+                          ล้างตัวกรอง ✕
+                        </button>
+                      </div>
+                    )}
+
+                    {filteredFilmRecs.length === 0 ? (
+                      <div className={`rounded-3xl backdrop-blur-xl border p-12 text-center space-y-3 ${cardBg}`}>
+                        <Box className="w-12 h-12 mx-auto text-slate-400 opacity-50" />
+                        <h3 className="text-base font-black text-slate-900 font-display">ไม่พบประวัติม้วนฟิล์มตามเงื่อนไขการกรอง</h3>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        {filteredFilmRecs.map(fr => (
+                          <div key={fr.id} className={`backdrop-blur-xl border rounded-3xl p-4 shadow-glass ${cardBg} flex items-center justify-between gap-3`}>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-black text-xs text-slate-900">{fr.machine || 'เครื่องบรรจุ'}</span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800">Supplier: {fr.supplier}</span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">กะ {fr.shift} ({fr.shiftType})</span>
+                              </div>
+                              <div className="text-[11px] text-slate-600 font-semibold">
+                                📅 วันที่: {fr.filmDate || '-'} | ⏰ เวลาเปลี่ยน: {fr.changeTime || '-'}
+                              </div>
+                              <div className="text-[11px] text-slate-600 font-semibold">
+                                👤 ผู้บันทึก: {fr.operator}
+                              </div>
+                            </div>
+                            {fr.tagPhoto && (
+                              <div className="w-16 h-16 rounded-xl overflow-hidden border border-purple-300 shrink-0 bg-white shadow-sm">
+                                <img src={fr.tagPhoto} alt="Film Roll Tag" className="w-full h-full object-cover" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
                 );
               })()}
             </div>
@@ -3617,12 +3857,6 @@ export default function App() {
               )
             },
             {
-              key: 'historyHub',
-              label: 'ประวัติ',
-              icon: <Clock className={`w-4 h-4 transition-colors duration-300 ${mobileTargetNavKey === 'historyHub' ? 'text-white' : 'text-amber-500'}`} />,
-              badge: todayRecords.length
-            },
-            {
               key: 'dashboard',
               label: 'แดชบอร์ด',
               icon: <TrendingUp className={`w-4 h-4 transition-colors duration-300 ${mobileTargetNavKey === 'dashboard' ? 'text-white' : 'text-emerald-500'}`} />
@@ -3643,11 +3877,6 @@ export default function App() {
                 }`}
               >
                 {item.icon} {item.label}
-                {item.badge !== undefined && item.badge > 0 && (
-                  <span className="absolute -top-1 -right-1 z-20 bg-rose-600 text-white text-[9px] px-1 rounded-full font-mono font-black shadow-sm">
-                    {item.badge}
-                  </span>
-                )}
               </button>
             );
           })}
